@@ -345,18 +345,24 @@ function calcBOM(W, D, H, panels) {
     { name:'Door Side Rail',   key:'doorSideRail', profile:'2040', len:doorSideLen,  qty:2 },
   ];
 
-  const innerW     = W - 2*EN + 2*INSET;
-  const innerH     = postLen + 2*INSET;
-  const innerD     = depthRailLen - 2*EN + 2*INSET;
-  const doorInnerH = doorSideLen + 2*INSET;
+  // Panel size = inner flat-to-flat - 2*(seal thickness + sliding tolerance)
+  // 20-series slot depth ≈ 6mm; Clicky Clack uses 3mm foam seal; 0.5mm tolerance per side
+  const SLOT      = 6;    // mm — slot depth from outer extrusion face
+  const SEAL      = 3;    // mm — foam seal tape thickness
+  const TOLERANCE = 0.5;  // mm — extra clearance per side for easy sliding
+  const GAP = 2 * (SEAL + TOLERANCE); // total to subtract per dimension
+  const panW = W - 2*(EN - SLOT) - GAP;
+  const panD = D - 2*(EN - SLOT) - GAP;
+  const panH = H - 2*(EW - SLOT) - GAP;
+  const doorPanH = doorSideLen - 2*(EW - SLOT) - GAP;
 
   const acrylicDefs = {
-    front:  {name:'Front Door Panel', w:innerW,        h:doorInnerH},
-    back:   {name:'Back Panel',       w:innerW,        h:innerH},
-    left:   {name:'Left Panel',       w:innerD+2*EN,   h:innerH},
-    right:  {name:'Right Panel',      w:innerD+2*EN,   h:innerH},
-    top:    {name:'Top Panel',        w:innerW,        h:innerD+2*EN},
-    bottom: {name:'Bottom Panel',     w:innerW,        h:innerD+2*EN},
+    front:  {name:'Front Door Panel', w:panW,  h:doorPanH},
+    back:   {name:'Back Panel',       w:panW,  h:panH},
+    left:   {name:'Left Panel',       w:panD,  h:panH},
+    right:  {name:'Right Panel',      w:panD,  h:panH},
+    top:    {name:'Top Panel',        w:panW,  h:panD},
+    bottom: {name:'Bottom Panel',     w:panW,  h:panD},
   };
   const acrylic = Object.entries(panels).filter(([,v])=>v).map(([k])=>({...acrylicDefs[k],key:k}));
   return {extrusions, acrylic};
@@ -673,7 +679,8 @@ grid.position.y = -2; scene.add(grid);
 
 // ── Materials ──────────────────────────────────────────────
 const matEx = new THREE.MeshPhysicalMaterial({
-  color:0xb8c8d4, metalness:0.75, roughness:0.25, reflectivity:0.5
+  color:0xb8c8d4, metalness:0.75, roughness:0.25, reflectivity:0.5,
+  side: THREE.DoubleSide
 });
 const matPanel = new THREE.MeshPhysicalMaterial({
   color:0x99ddff, transparent:true, opacity:0.18,
@@ -681,57 +688,357 @@ const matPanel = new THREE.MeshPhysicalMaterial({
 });
 const matDesk = new THREE.MeshPhysicalMaterial({color:0x1c1c1c, metalness:0, roughness:0.85});
 
-// ── T-slot profiles ────────────────────────────────────────
-function makeExtrusionShape2040() {
-  const W=EX_NARR, H=EX_WIDE, hw=W/2, hh=H/2, sw=6.5, sd=4.5;
+// ── OpenBuilds V-slot profiles (DXF-derived coordinates) ────
+// Profile: 20×20mm with V-grooves on all 4 faces, 0.5mm corner fillets,
+// 4.2mm center bore. Coordinates from richard-scott/OpenBuilds DXF.
+
+// Build one 2020 V-slot cell centered at (offsetX, offsetY)
+function makeVSlot2020Cell(offsetX, offsetY) {
   const s = new THREE.Shape();
-  s.moveTo(-hw,-hh);
-  s.lineTo(-sw/2,-hh); s.lineTo(-sw/2,-hh+sd); s.lineTo(sw/2,-hh+sd); s.lineTo(sw/2,-hh);
-  s.lineTo(hw,-hh);
-  s.lineTo(hw,-sw/2); s.lineTo(hw-sd,-sw/2); s.lineTo(hw-sd,sw/2); s.lineTo(hw,sw/2);
-  s.lineTo(hw,hh);
-  s.lineTo(sw/2,hh); s.lineTo(sw/2,hh-sd); s.lineTo(-sw/2,hh-sd); s.lineTo(-sw/2,hh);
-  s.lineTo(-hw,hh);
-  s.lineTo(-hw,sw/2); s.lineTo(-hw+sd,sw/2); s.lineTo(-hw+sd,-sw/2); s.lineTo(-hw,-sw/2);
-  s.lineTo(-hw,-hh);
-  const bore=new THREE.Path();
-  bore.moveTo(-6,-5); bore.lineTo(6,-5); bore.lineTo(6,5); bore.lineTo(-6,5); bore.closePath();
-  s.holes.push(bore); return s;
+  const ox = offsetX, oy = offsetY;
+
+  s.moveTo(ox+3.69, oy+0);
+
+  // Right face lower half
+  s.lineTo(ox+3.9,   oy-0.21);
+  s.lineTo(ox+3.9,   oy-2.839);
+  s.lineTo(ox+6.561, oy-5.5);
+  s.lineTo(ox+8.2,   oy-5.5);
+  s.lineTo(ox+8.2,   oy-3.125);
+  s.lineTo(ox+8.545, oy-3.125);
+  s.lineTo(ox+10.0,  oy-4.58);
+
+  // Bottom-right corner fillet
+  s.lineTo(ox+10.0, oy-9.5);
+  s.absarc(ox+9.5, oy-9.5, 0.5, 0, -Math.PI/2, true);
+
+  // Bottom edge + bottom V-groove
+  s.lineTo(ox+4.58,  oy-10.0);
+  s.lineTo(ox+3.125, oy-8.545);
+  s.lineTo(ox+3.125, oy-8.2);
+  s.lineTo(ox+5.5,   oy-8.2);
+  s.lineTo(ox+5.5,   oy-6.561);
+  s.lineTo(ox+2.839, oy-3.9);
+  s.lineTo(ox+0.21,  oy-3.9);
+  s.lineTo(ox+0.0,   oy-3.69);
+  s.lineTo(ox-0.21,  oy-3.9);
+  s.lineTo(ox-2.839, oy-3.9);
+  s.lineTo(ox-5.5,   oy-6.561);
+  s.lineTo(ox-5.5,   oy-8.2);
+  s.lineTo(ox-3.125, oy-8.2);
+  s.lineTo(ox-3.125, oy-8.545);
+  s.lineTo(ox-4.58,  oy-10.0);
+
+  // Bottom-left corner fillet
+  s.lineTo(ox-9.5, oy-10.0);
+  s.absarc(ox-9.5, oy-9.5, 0.5, -Math.PI/2, -Math.PI, true);
+
+  // Left edge + left V-groove
+  s.lineTo(ox-10.0,  oy-4.58);
+  s.lineTo(ox-8.545, oy-3.125);
+  s.lineTo(ox-8.2,   oy-3.125);
+  s.lineTo(ox-8.2,   oy-5.5);
+  s.lineTo(ox-6.561, oy-5.5);
+  s.lineTo(ox-3.9,   oy-2.839);
+  s.lineTo(ox-3.9,   oy-0.21);
+  s.lineTo(ox-3.69,  oy+0.0);
+  s.lineTo(ox-3.9,   oy+0.21);
+  s.lineTo(ox-3.9,   oy+2.839);
+  s.lineTo(ox-6.561, oy+5.5);
+  s.lineTo(ox-8.2,   oy+5.5);
+  s.lineTo(ox-8.2,   oy+3.125);
+  s.lineTo(ox-8.545, oy+3.125);
+  s.lineTo(ox-10.0,  oy+4.58);
+
+  // Top-left corner fillet
+  s.lineTo(ox-10.0, oy+9.5);
+  s.absarc(ox-9.5, oy+9.5, 0.5, Math.PI, Math.PI/2, true);
+
+  // Top edge + top V-groove
+  s.lineTo(ox-4.58,  oy+10.0);
+  s.lineTo(ox-3.125, oy+8.545);
+  s.lineTo(ox-3.125, oy+8.2);
+  s.lineTo(ox-5.5,   oy+8.2);
+  s.lineTo(ox-5.5,   oy+6.561);
+  s.lineTo(ox-2.839, oy+3.9);
+  s.lineTo(ox-0.21,  oy+3.9);
+  s.lineTo(ox+0.0,   oy+3.69);
+  s.lineTo(ox+0.21,  oy+3.9);
+  s.lineTo(ox+2.839, oy+3.9);
+  s.lineTo(ox+5.5,   oy+6.561);
+  s.lineTo(ox+5.5,   oy+8.2);
+  s.lineTo(ox+3.125, oy+8.2);
+  s.lineTo(ox+3.125, oy+8.545);
+  s.lineTo(ox+4.58,  oy+10.0);
+
+  // Top-right corner fillet
+  s.lineTo(ox+9.5, oy+10.0);
+  s.absarc(ox+9.5, oy+9.5, 0.5, Math.PI/2, 0, true);
+
+  // Right edge upper half back to start
+  s.lineTo(ox+10.0,  oy+4.58);
+  s.lineTo(ox+8.545, oy+3.125);
+  s.lineTo(ox+8.2,   oy+3.125);
+  s.lineTo(ox+8.2,   oy+5.5);
+  s.lineTo(ox+6.561, oy+5.5);
+  s.lineTo(ox+3.9,   oy+2.839);
+  s.lineTo(ox+3.9,   oy+0.21);
+  s.lineTo(ox+3.69,  oy+0.0);
+
+  return s;
 }
 
+// 2020: single cell centered at origin
 function makeExtrusionShape2020() {
-  const hw=EX_NARR/2, hh=EX_NARR/2, sw=6.5, sd=4.5;
-  const s = new THREE.Shape();
-  s.moveTo(-hw,-hh);
-  s.lineTo(-sw/2,-hh); s.lineTo(-sw/2,-hh+sd); s.lineTo(sw/2,-hh+sd); s.lineTo(sw/2,-hh);
-  s.lineTo(hw,-hh);
-  s.lineTo(hw,-sw/2); s.lineTo(hw-sd,-sw/2); s.lineTo(hw-sd,sw/2); s.lineTo(hw,sw/2);
-  s.lineTo(hw,hh);
-  s.lineTo(sw/2,hh); s.lineTo(sw/2,hh-sd); s.lineTo(-sw/2,hh-sd); s.lineTo(-sw/2,hh);
-  s.lineTo(-hw,hh);
-  s.lineTo(-hw,sw/2); s.lineTo(-hw+sd,sw/2); s.lineTo(-hw+sd,-sw/2); s.lineTo(-hw,-sw/2);
-  s.lineTo(-hw,-hh);
-  const bore=new THREE.Path();
-  bore.moveTo(-4,-4); bore.lineTo(4,-4); bore.lineTo(4,4); bore.lineTo(-4,4); bore.closePath();
-  s.holes.push(bore); return s;
+  const s = makeVSlot2020Cell(0, 0);
+  const bore = new THREE.Path();
+  bore.absarc(0, 0, 2.1, 0, Math.PI*2, true);
+  s.holes.push(bore);
+  return s;
 }
 
-// 2040 wide: 40mm in X, 20mm in Y — door side rails (rotation.x=PI/2 → 40mm in X, 20mm in Z)
-function makeExtrusionShape2040_wide() {
-  const W=EX_WIDE, H=EX_NARR, hw=W/2, hh=H/2, sw=6.5, sd=4.5;
+// 2040 (20×40): two 2020 cells stacked in Y (cells at y=+10 and y=-10).
+// Shared inner faces are replaced with a straight wall at y=0 (no slot — it's joined).
+// Outer profile: left/right faces get 2 V-grooves each, top/bottom get 1, ends get 1.
+function makeExtrusionShape2040() {
+  // Build as a single merged outline: 20mm wide (X), 40mm tall (Y)
+  // Cells centered at (0,-10) and (0,+10)
+  // The shared wall at y=0 is straight (no groove on internal junction)
+  const ox = 0;
   const s = new THREE.Shape();
-  s.moveTo(-hw,-hh);
-  s.lineTo(-sw/2,-hh); s.lineTo(-sw/2,-hh+sd); s.lineTo(sw/2,-hh+sd); s.lineTo(sw/2,-hh);
-  s.lineTo(hw,-hh);
-  s.lineTo(hw,-sw/2); s.lineTo(hw-sd,-sw/2); s.lineTo(hw-sd,sw/2); s.lineTo(hw,sw/2);
-  s.lineTo(hw,hh);
-  s.lineTo(sw/2,hh); s.lineTo(sw/2,hh-sd); s.lineTo(-sw/2,hh-sd); s.lineTo(-sw/2,hh);
-  s.lineTo(-hw,hh);
-  s.lineTo(-hw,sw/2); s.lineTo(-hw+sd,sw/2); s.lineTo(-hw+sd,-sw/2); s.lineTo(-hw,-sw/2);
-  s.lineTo(-hw,-hh);
-  const bore=new THREE.Path();
-  bore.moveTo(-5,-6); bore.lineTo(5,-6); bore.lineTo(5,6); bore.lineTo(-5,6); bore.closePath();
-  s.holes.push(bore); return s;
+
+  // Start at right V-groove of bottom cell (y-center=-10), at tip
+  s.moveTo(ox+3.69, -10+0);
+
+  // Bottom cell right face lower half
+  s.lineTo(ox+3.9,   -10-0.21);
+  s.lineTo(ox+3.9,   -10-2.839);
+  s.lineTo(ox+6.561, -10-5.5);
+  s.lineTo(ox+8.2,   -10-5.5);
+  s.lineTo(ox+8.2,   -10-3.125);
+  s.lineTo(ox+8.545, -10-3.125);
+  s.lineTo(ox+10.0,  -10-4.58);
+
+  // Bottom-right corner fillet
+  s.lineTo(ox+10.0, -19.5);
+  s.absarc(ox+9.5, -19.5, 0.5, 0, -Math.PI/2, true);
+
+  // Bottom face V-groove
+  s.lineTo(ox+4.58,  -20.0);
+  s.lineTo(ox+3.125, -18.545);
+  s.lineTo(ox+3.125, -18.2);
+  s.lineTo(ox+5.5,   -18.2);
+  s.lineTo(ox+5.5,   -16.561);
+  s.lineTo(ox+2.839, -13.9);
+  s.lineTo(ox+0.21,  -13.9);
+  s.lineTo(ox+0.0,   -13.69);
+  s.lineTo(ox-0.21,  -13.9);
+  s.lineTo(ox-2.839, -13.9);
+  s.lineTo(ox-5.5,   -16.561);
+  s.lineTo(ox-5.5,   -18.2);
+  s.lineTo(ox-3.125, -18.2);
+  s.lineTo(ox-3.125, -18.545);
+  s.lineTo(ox-4.58,  -20.0);
+
+  // Bottom-left corner fillet
+  s.lineTo(ox-9.5, -20.0);
+  s.absarc(ox-9.5, -19.5, 0.5, -Math.PI/2, -Math.PI, true);
+
+  // Left face: bottom cell V-groove (going upward)
+  s.lineTo(ox-10.0,  -10-4.58);
+  s.lineTo(ox-8.545, -10-3.125);
+  s.lineTo(ox-8.2,   -10-3.125);
+  s.lineTo(ox-8.2,   -10-5.5);
+  s.lineTo(ox-6.561, -10-5.5);
+  s.lineTo(ox-3.9,   -10-2.839);
+  s.lineTo(ox-3.9,   -10-0.21);
+  s.lineTo(ox-3.69,  -10+0);
+  s.lineTo(ox-3.9,   -10+0.21);
+  s.lineTo(ox-3.9,   -10+2.839);
+  s.lineTo(ox-6.561, -10+5.5);
+  s.lineTo(ox-8.2,   -10+5.5);
+  s.lineTo(ox-8.2,   -10+3.125);
+  s.lineTo(ox-8.545, -10+3.125);
+
+  // Left face: top cell V-groove (continuing upward, no break at y=0)
+  s.lineTo(ox-10.0,  10-4.58);
+  s.lineTo(ox-8.545, 10-3.125);
+  s.lineTo(ox-8.2,   10-3.125);
+  s.lineTo(ox-8.2,   10-5.5);
+  s.lineTo(ox-6.561, 10-5.5);
+  s.lineTo(ox-3.9,   10-2.839);
+  s.lineTo(ox-3.9,   10-0.21);
+  s.lineTo(ox-3.69,  10+0);
+  s.lineTo(ox-3.9,   10+0.21);
+  s.lineTo(ox-3.9,   10+2.839);
+  s.lineTo(ox-6.561, 10+5.5);
+  s.lineTo(ox-8.2,   10+5.5);
+  s.lineTo(ox-8.2,   10+3.125);
+  s.lineTo(ox-8.545, 10+3.125);
+  s.lineTo(ox-10.0,  10+4.58);
+
+  // Top-left corner fillet
+  s.lineTo(ox-10.0, 19.5);
+  s.absarc(ox-9.5, 19.5, 0.5, Math.PI, Math.PI/2, true);
+
+  // Top face V-groove
+  s.lineTo(ox-4.58,  20.0);
+  s.lineTo(ox-3.125, 18.545);
+  s.lineTo(ox-3.125, 18.2);
+  s.lineTo(ox-5.5,   18.2);
+  s.lineTo(ox-5.5,   16.561);
+  s.lineTo(ox-2.839, 13.9);
+  s.lineTo(ox-0.21,  13.9);
+  s.lineTo(ox+0.0,   13.69);
+  s.lineTo(ox+0.21,  13.9);
+  s.lineTo(ox+2.839, 13.9);
+  s.lineTo(ox+5.5,   16.561);
+  s.lineTo(ox+5.5,   18.2);
+  s.lineTo(ox+3.125, 18.2);
+  s.lineTo(ox+3.125, 18.545);
+  s.lineTo(ox+4.58,  20.0);
+
+  // Top-right corner fillet
+  s.lineTo(ox+9.5, 20.0);
+  s.absarc(ox+9.5, 19.5, 0.5, Math.PI/2, 0, true);
+
+  // Right face: top cell V-groove (going downward)
+  s.lineTo(ox+10.0,  10+4.58);
+  s.lineTo(ox+8.545, 10+3.125);
+  s.lineTo(ox+8.2,   10+3.125);
+  s.lineTo(ox+8.2,   10+5.5);
+  s.lineTo(ox+6.561, 10+5.5);
+  s.lineTo(ox+3.9,   10+2.839);
+  s.lineTo(ox+3.9,   10+0.21);
+  s.lineTo(ox+3.69,  10+0);
+  s.lineTo(ox+3.9,   10-0.21);
+  s.lineTo(ox+3.9,   10-2.839);
+  s.lineTo(ox+6.561, 10-5.5);
+  s.lineTo(ox+8.2,   10-5.5);
+  s.lineTo(ox+8.2,   10-3.125);
+  s.lineTo(ox+8.545, 10-3.125);
+
+  // Right face: bottom cell V-groove (continuing downward back to start)
+  s.lineTo(ox+10.0,  -10+4.58);
+  s.lineTo(ox+8.545, -10+3.125);
+  s.lineTo(ox+8.2,   -10+3.125);
+  s.lineTo(ox+8.2,   -10+5.5);
+  s.lineTo(ox+6.561, -10+5.5);
+  s.lineTo(ox+3.9,   -10+2.839);
+  s.lineTo(ox+3.9,   -10+0.21);
+  s.lineTo(ox+3.69,  -10+0);
+
+  // Two center bores (one per 2020 cell)
+  [-10, +10].forEach(cy => {
+    const bore = new THREE.Path();
+    bore.absarc(0, cy, 2.1, 0, Math.PI*2, true);
+    s.holes.push(bore);
+  });
+  return s;
+}
+
+// 2040 wide: 40mm in X, 20mm in Y (rotated 90°). Built by transposing the 2040 outline.
+function makeExtrusionShape2040_wide() {
+  // Same as 2040 but X↔Y swapped: cells at x=+10 and x=-10
+  const s = new THREE.Shape();
+
+  s.moveTo(0, 3.69);  // top V-groove tip of right cell
+
+  // Top face right cell right half
+  s.lineTo(0.21,   3.9);
+  s.lineTo(2.839,  3.9);
+  s.lineTo(5.5,    6.561);
+  s.lineTo(5.5,    8.2);
+  s.lineTo(3.125,  8.2);
+  s.lineTo(3.125,  8.545);
+  s.lineTo(4.58,   10.0);
+
+  // Top-right corner fillet
+  s.lineTo(9.5, 10.0);
+  s.absarc(9.5, 9.5, 0.5, Math.PI/2, 0, true);
+
+  // Right face V-groove (right cell)
+  s.lineTo(10.0,  4.58);
+  s.lineTo(8.545, 3.125);
+  s.lineTo(8.2,   3.125);
+  s.lineTo(8.2,   5.5);
+  s.lineTo(6.561, 5.5);
+  s.lineTo(3.9,   2.839);
+  s.lineTo(3.9,   0.21);
+  s.lineTo(3.69,  0.0);
+  s.lineTo(3.9,   -0.21);
+  s.lineTo(3.9,   -2.839);
+  s.lineTo(6.561, -5.5);
+  s.lineTo(8.2,   -5.5);
+  s.lineTo(8.2,   -3.125);
+  s.lineTo(8.545, -3.125);
+  s.lineTo(10.0,  -4.58);
+
+  // Bottom-right corner fillet
+  s.lineTo(9.5, -10.0);
+  s.absarc(9.5, -9.5, 0.5, 0, -Math.PI/2, true);
+
+  // Bottom face right half V-groove
+  s.lineTo(4.58,  -10.0);
+  s.lineTo(3.125, -8.545);
+  s.lineTo(3.125, -8.2);
+  s.lineTo(5.5,   -8.2);
+  s.lineTo(5.5,   -6.561);
+  s.lineTo(2.839, -3.9);
+  s.lineTo(0.21,  -3.9);
+  s.lineTo(0.0,   -3.69);
+
+  // Bottom V-groove tip, then left cell bottom half
+  s.lineTo(-0.21,  -3.9);
+  s.lineTo(-2.839, -3.9);
+  s.lineTo(-5.5,   -6.561);
+  s.lineTo(-5.5,   -8.2);
+  s.lineTo(-3.125, -8.2);
+  s.lineTo(-3.125, -8.545);
+  s.lineTo(-4.58,  -10.0);
+
+  // Bottom-left corner fillet
+  s.lineTo(-9.5, -10.0);
+  s.absarc(-9.5, -9.5, 0.5, -Math.PI/2, -Math.PI, true);
+
+  // Left face V-groove (left cell)
+  s.lineTo(-10.0,  -4.58);
+  s.lineTo(-8.545, -3.125);
+  s.lineTo(-8.2,   -3.125);
+  s.lineTo(-8.2,   -5.5);
+  s.lineTo(-6.561, -5.5);
+  s.lineTo(-3.9,   -2.839);
+  s.lineTo(-3.9,   -0.21);
+  s.lineTo(-3.69,  0.0);
+  s.lineTo(-3.9,   0.21);
+  s.lineTo(-3.9,   2.839);
+  s.lineTo(-6.561, 5.5);
+  s.lineTo(-8.2,   5.5);
+  s.lineTo(-8.2,   3.125);
+  s.lineTo(-8.545, 3.125);
+  s.lineTo(-10.0,  4.58);
+
+  // Top-left corner fillet
+  s.lineTo(-9.5, 10.0);
+  s.absarc(-9.5, 9.5, 0.5, Math.PI, Math.PI/2, true);
+
+  // Top face left half V-groove back to start
+  s.lineTo(-4.58,  10.0);
+  s.lineTo(-3.125, 8.545);
+  s.lineTo(-3.125, 8.2);
+  s.lineTo(-5.5,   8.2);
+  s.lineTo(-5.5,   6.561);
+  s.lineTo(-2.839, 3.9);
+  s.lineTo(-0.21,  3.9);
+  s.lineTo(0.0,    3.69);
+
+  // Two center bores (one per 2020 cell at x=±10)
+  [-10, +10].forEach(cx => {
+    const bore = new THREE.Path();
+    bore.absarc(cx, 0, 2.1, 0, Math.PI*2, true);
+    s.holes.push(bore);
+  });
+  return s;
 }
 
 const _shape2040      = makeExtrusionShape2040();
@@ -746,11 +1053,11 @@ function makeExtrusionGeo(length, shape) {
 
 // Place a 2040 rail and register it with a BOM key
 function placeRail2040(group, length, axis, px, py, pz, bomKey) {
-  const shape = axis==='ydoor' ? _shape2040_wide : _shape2040;
+  const shape = _shape2040;
   const mesh  = new THREE.Mesh(makeExtrusionGeo(length, shape), matEx.clone());
   mesh.castShadow = mesh.receiveShadow = true;
   if (axis==='x')     mesh.rotation.y = -Math.PI/2;
-  if (axis==='ydoor') mesh.rotation.x =  Math.PI/2;
+  if (axis==='ydoor') { mesh.rotation.x = Math.PI/2; mesh.rotation.z = Math.PI/2; }
   mesh.position.set(px, py, pz);
   group.add(mesh);
   if (bomKey) registerMesh(mesh, bomKey);
