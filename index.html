@@ -242,6 +242,7 @@ tr.bom-row.selected td.td-dim{color:#cce}
         <div class="bom-foot">
           <span id="bom-total-text" style="font-size:11px;color:#444"></span>
           <button class="xp-btn" onclick="exportCSV()">Export CSV</button>
+          <button class="xp-btn" id="btn-export-step" onclick="exportSTEP()">Export STEP</button>
         </div>
       </div>
 
@@ -488,6 +489,136 @@ function exportCSV() {
     download: `birdbox_${state.W}x${state.D}x${state.H}.csv`
   });
   a.click();
+}
+
+// ── STEP export ────────────────────────────────────────────
+function exportSTEP() {
+  const btn = document.getElementById('btn-export-step');
+  if (btn) { btn.textContent = 'Exporting…'; btn.disabled = true; }
+
+  // ── Mini STEP writer ──────────────────────────────────────
+  const lines = [];
+  let _id = 0;
+  const add = s => { lines.push(`#${++_id} = ${s};`); return _id; };
+  const f   = v => v.toFixed(6);
+  const pt  = (x,y,z) => add(`CARTESIAN_POINT('',(${f(x)},${f(y)},${f(z)}))`);
+  const dir = (x,y,z) => add(`DIRECTION('',(${f(x)},${f(y)},${f(z)}))`);
+  const vec = (d,m)   => add(`VECTOR('',#${d},${f(m)})`);
+  const ax2 = (o,z,x) => add(`AXIS2_PLACEMENT_3D('',#${o},#${z},#${x})`);
+  const vpt = p       => add(`VERTEX_POINT('',#${p})`);
+  const lne = (o,v)   => add(`LINE('',#${o},#${v})`);
+  const ec  = (a,b,c) => add(`EDGE_CURVE('',#${a},#${b},#${c},.T.)`);
+  const oe  = (e,s)   => add(`ORIENTED_EDGE('',*,*,#${e},${s?'.T.':'.F.'})`);
+  const el  = es      => add(`EDGE_LOOP('',(${es.map(e=>'#'+e).join(',')}))`);
+  const fb  = (l,s)   => add(`FACE_BOUND('',#${l},${s?'.T.':'.F.'})`);
+  const af  = (bs,su) => add(`ADVANCED_FACE('',(${bs.map(b=>'#'+b).join(',')}),#${su},.T.)`);
+  const cs  = fs      => add(`CLOSED_SHELL('',(${fs.map(f=>'#'+f).join(',')}))`);
+  const msb = sh      => add(`MANIFOLD_SOLID_BREP('Body',#${sh})`);
+
+  // Write one planar quad face. pts: array of 4 [x,y,z] world coords (CCW outward).
+  function writeFace(pts) {
+    // Normal from cross product of first two edges
+    const u = pts[1].map((v,i)=>v-pts[0][i]);
+    const v = pts[3].map((v,i)=>v-pts[0][i]);
+    const nx = u[1]*v[2]-u[2]*v[1], ny = u[2]*v[0]-u[0]*v[2], nz = u[0]*v[1]-u[1]*v[0];
+    const nl = Math.sqrt(nx*nx+ny*ny+nz*nz)||1;
+    // Edge direction (first edge)
+    const el0 = Math.sqrt(u[0]*u[0]+u[1]*u[1]+u[2]*u[2])||1;
+    const orig  = pt(...pts[0]);
+    const zd    = dir(nx/nl, ny/nl, nz/nl);
+    const xd    = dir(u[0]/el0, u[1]/el0, u[2]/el0);
+    const plAx  = ax2(orig, zd, xd);
+    const surf  = add(`PLANE('',#${plAx})`);
+    const cpts  = pts.map(p => pt(...p));
+    const vpts  = cpts.map(p => vpt(p));
+    const oes   = pts.map((_,i) => {
+      const j  = (i+1)%4;
+      const dx = pts[j][0]-pts[i][0], dy = pts[j][1]-pts[i][1], dz = pts[j][2]-pts[i][2];
+      const l  = Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
+      const ld = dir(dx/l, dy/l, dz/l);
+      const lv = vec(ld, l);
+      const lg = lne(cpts[i], lv);
+      const e  = ec(vpts[i], vpts[j], lg);
+      return oe(e, true);
+    });
+    const loop  = el(oes);
+    const bound = fb(loop, true);
+    return af([bound], surf);
+  }
+
+  // Write a solid box from 8 world-space corners (standard box winding).
+  // c[0-3] = bottom face CCW, c[4-7] = top face CCW (same XY order, higher Z).
+  function writeBrep(c) {
+    const faces = [
+      writeFace([c[0],c[3],c[2],c[1]]), // bottom  (−Z normal)
+      writeFace([c[4],c[5],c[6],c[7]]), // top     (+Z normal)
+      writeFace([c[0],c[1],c[5],c[4]]), // front   (−Y normal)
+      writeFace([c[2],c[3],c[7],c[6]]), // back    (+Y normal)
+      writeFace([c[1],c[2],c[6],c[5]]), // right   (+X normal)
+      writeFace([c[3],c[0],c[4],c[7]]), // left    (−X normal)
+    ];
+    return msb(cs(faces));
+  }
+
+  // Transform local box corners via a Three.js Matrix4
+  function boxCorners(W, H, L, mat) {
+    const hw=W/2, hh=H/2, hl=L/2;
+    const local = [
+      [-hw,-hh,-hl], [hw,-hh,-hl], [hw,hh,-hl], [-hw,hh,-hl],
+      [-hw,-hh, hl], [hw,-hh, hl], [hw,hh, hl], [-hw,hh, hl],
+    ];
+    return local.map(([x,y,z]) => {
+      const v = new THREE.Vector3(x,y,z).applyMatrix4(mat);
+      return [v.x, v.y, v.z];
+    });
+  }
+
+  // Collect scene meshes with stepType
+  const solids = [];
+  frameGroup.updateMatrixWorld(true);
+  frameGroup.traverse(obj => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const ud = obj.userData;
+    if (!ud.stepType) return;
+    obj.updateMatrixWorld(true);
+    const c = boxCorners(ud.secW, ud.secH, ud.length, obj.matrixWorld);
+    solids.push(writeBrep(c));
+  });
+
+  // ── Build AP203 file ────────────────────────────────────────
+  const appCtx  = add(`APPLICATION_CONTEXT('configuration controlled 3D design of mechanical parts and assemblies')`);
+  add(`APPLICATION_PROTOCOL_DEFINITION('international standard','configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2001,#${appCtx})`);
+  const prodCtx = add(`PRODUCT_CONTEXT('',#${appCtx},'mechanical')`);
+  const prod    = add(`PRODUCT('BirdBox','BirdBox','',(#${prodCtx}))`);
+  const pdCtx   = add(`PRODUCT_DEFINITION_CONTEXT('part definition',#${appCtx},'design')`);
+  const pd      = add(`PRODUCT_DEFINITION('design','',#${pdCtx},#${prod})`);
+  const pds     = add(`PRODUCT_DEFINITION_SHAPE('definitionshape','',#${pd})`);
+  const gcCtx   = add(`(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#${add(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.001),#${add(`(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))`)},'','')`)})GLOBAL_UNIT_ASSIGNED_CONTEXT((#${add(`(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))`)},#${add(`(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))`)},#${add(`(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT())`)}))REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and UNCERTAINTY'))`);
+  const srep    = add(`SHAPE_REPRESENTATION('BirdBox',(${solids.map(s=>'#'+s).join(',')}),#${gcCtx})`);
+  add(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${srep})`);
+
+  // ── Assemble file ───────────────────────────────────────────
+  const now = new Date().toISOString().replace('T',' ').slice(0,19);
+  const header = [
+    'ISO-10303-21;',
+    'HEADER;',
+    `FILE_DESCRIPTION(('BirdBox Open Source Printer Enclosure'),'2;1');`,
+    `FILE_NAME('birdbox.stp','${now}',('BirdBox Configurator'),(''),'','','');`,
+    `FILE_SCHEMA(('CONFIG_CONTROL_DESIGN'));`,
+    'ENDSEC;',
+    'DATA;',
+  ].join('\n');
+  const footer = 'ENDSEC;\nEND-ISO-10303-21;';
+  const content = header + '\n' + lines.join('\n') + '\n' + footer;
+
+  // ── Download ────────────────────────────────────────────────
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([content], {type:'model/step'})),
+    download: `birdbox_${state.W}x${state.D}x${state.H}.stp`,
+  });
+  a.click();
+
+  if (btn) { btn.textContent = 'Export STEP'; btn.disabled = false; }
 }
 
 // ── STEP loading ───────────────────────────────────────────
@@ -1059,6 +1190,9 @@ function placeRail2040(group, length, axis, px, py, pz, bomKey) {
   if (axis==='x')     mesh.rotation.y = -Math.PI/2;
   if (axis==='ydoor') { mesh.rotation.x = Math.PI/2; mesh.rotation.z = Math.PI/2; }
   mesh.position.set(px, py, pz);
+  mesh.userData.stepType = 'extrusion';
+  mesh.userData.secW = EX_NARR; mesh.userData.secH = EX_WIDE;
+  mesh.userData.length = length;
   group.add(mesh);
   if (bomKey) registerMesh(mesh, bomKey);
   return mesh;
@@ -1070,6 +1204,9 @@ function placeRail2020h(group, length, px, py, pz, bomKey) {
   mesh.castShadow = mesh.receiveShadow = true;
   mesh.rotation.y = -Math.PI/2;
   mesh.position.set(px, py, pz);
+  mesh.userData.stepType = 'extrusion';
+  mesh.userData.secW = EX_NARR; mesh.userData.secH = EX_NARR;
+  mesh.userData.length = length;
   group.add(mesh);
   if (bomKey) registerMesh(mesh, bomKey);
   return mesh;
@@ -1081,6 +1218,9 @@ function placePost2020(group, length, px, py, pz, bomKey) {
   mesh.castShadow = mesh.receiveShadow = true;
   mesh.rotation.x = Math.PI/2;
   mesh.position.set(px, py, pz);
+  mesh.userData.stepType = 'extrusion';
+  mesh.userData.secW = EX_NARR; mesh.userData.secH = EX_NARR;
+  mesh.userData.length = length;
   group.add(mesh);
   if (bomKey) registerMesh(mesh, bomKey);
   return mesh;
@@ -1088,7 +1228,10 @@ function placePost2020(group, length, px, py, pz, bomKey) {
 
 // ── Panel builder ──────────────────────────────────────────
 function makePanel(w, h) {
-  return new THREE.Mesh(new THREE.BoxGeometry(w,h,4), matPanel.clone());
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,4), matPanel.clone());
+  mesh.userData.stepType = 'panel';
+  mesh.userData.secW = w; mesh.userData.secH = h; mesh.userData.length = 4;
+  return mesh;
 }
 
 // ── Angle bracket ──────────────────────────────────────────
