@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BirdBox — Open Source Printer Enclosure</title>
+<style>
+:root {
+  --gray0:#F0EFE8; --gray1:#D8D4C8; --gray2:#C0BBB0; --gray3:#888480;
+  --white:#FFFFFF; --black:#000000;
+  --blue:#0054E3; --navy:#0A246A;
+  --hi:#0A246A; --hi-t:#FFFFFF;
+  --green:#006600; --red:#990000;
+  --raised: 1px 1px 0 var(--white) inset, -1px -1px 0 var(--gray3) inset;
+  --sunken: -1px -1px 0 var(--white) inset, 1px 1px 0 var(--gray3) inset;
+  --font: Tahoma,'MS Sans Serif',Arial,sans-serif;
+  --mono: 'Lucida Console','Courier New',monospace;
+  --vp:#0D0F14;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--gray0);color:var(--black);font-family:var(--font);font-size:11px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* ── Header ── */
+header{
+  background:linear-gradient(180deg,#1F6BC4 0%,#1254AB 40%,#0A3DA8 60%,#083296 100%);
+  color:#fff;height:28px;display:flex;align-items:center;
+  justify-content:space-between;padding:0 6px;flex-shrink:0;
+  border-bottom:1px solid #062880;user-select:none;
+}
+.logo{display:flex;align-items:center;gap:8px}
+.logo-icon{width:18px;height:18px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect x='2' y='6' width='14' height='10' rx='1' fill='%23fff' opacity='.9'/%3E%3Crect x='5' y='3' width='8' height='5' rx='1' fill='%23fff' opacity='.7'/%3E%3Ccircle cx='9' cy='11' r='2' fill='%230A3DA8'/%3E%3C/svg%3E") center/contain no-repeat}
+.logo-name{font-size:12px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);letter-spacing:.02em}
+.logo-sub{font-size:10px;color:rgba(255,255,255,.7);margin-left:2px}
+.header-right{display:flex;align-items:center;gap:4px}
+.hdr-btn{display:flex;align-items:center;gap:4px;padding:2px 8px;font-size:11px;font-family:var(--font);color:#fff;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);cursor:pointer;text-decoration:none}
+.hdr-btn:hover{background:rgba(255,255,255,.25)}
+
+/* ── Layout ── */
+.main{display:flex;flex:1;overflow:hidden}
+.sidebar{width:295px;flex-shrink:0;background:var(--gray0);border-right:2px solid;border-right-color:var(--gray3) var(--white) var(--white) var(--gray3);display:flex;flex-direction:column;overflow:hidden}
+.sidebar-scroll{overflow-y:auto;flex:1;padding:6px 6px 6px 6px}
+.viewport{flex:1;position:relative;background:var(--vp);overflow:hidden}
+#canvas3d{display:block;width:100%;height:100%}
+
+/* ── Group boxes ── */
+.grp{border:1px solid var(--gray3);margin-bottom:6px;background:var(--white)}
+.grp-title{background:var(--gray1);padding:2px 6px;font-size:10px;font-weight:bold;color:#333;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--gray2)}
+.grp-body{padding:5px 6px}
+
+/* ── Units toggle ── */
+.radio-row{display:flex;gap:14px;margin-bottom:2px}
+.radio-row label{display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px}
+
+/* ── Input rows ── */
+.inp-row{display:flex;align-items:center;margin-bottom:3px;gap:4px}
+.inp-row label{width:88px;font-size:11px;flex-shrink:0;color:#222}
+.xp-inp{
+  width:66px;border:2px solid;
+  border-color:var(--gray3) var(--white) var(--white) var(--gray3);
+  background:#fff;font-family:var(--mono);font-size:11px;
+  padding:1px 3px;outline:none;color:#000;
+}
+.xp-inp:focus{border-color:var(--blue) var(--white) var(--white) var(--blue)}
+.inp-unit{font-size:10px;color:#666;width:18px}
+.slider-wrap{padding:0 0 3px 92px}
+input[type=range]{width:100%;height:14px;cursor:pointer;accent-color:var(--navy)}
+
+/* ── Checkboxes ── */
+.chk-row{display:flex;align-items:center;gap:5px;padding:2px 0;cursor:pointer;font-size:11px}
+.chk-row input[type=checkbox]{cursor:pointer;accent-color:var(--navy)}
+
+/* ── XP Buttons ── */
+.xp-btn{
+  padding:3px 10px;background:var(--gray1);
+  border:2px solid;border-color:var(--white) var(--gray3) var(--gray3) var(--white);
+  font-family:var(--font);font-size:11px;cursor:pointer;color:#000;
+}
+.xp-btn:hover{background:var(--gray0)}
+.xp-btn:active,.xp-btn.pressed{border-color:var(--gray3) var(--white) var(--white) var(--gray3);padding:4px 9px 2px 11px}
+.xp-btn.active{background:var(--gray2);border-color:var(--gray3) var(--white) var(--white) var(--gray3)}
+
+/* ── Tabs ── */
+.tab-bar{display:flex;border-bottom:1px solid var(--gray3);background:var(--gray1);padding:3px 4px 0}
+.tab-btn{
+  padding:3px 12px 4px;font-size:11px;font-family:var(--font);
+  background:var(--gray0);border:1px solid var(--gray3);border-bottom:none;
+  cursor:pointer;color:#555;margin-right:2px;position:relative;top:1px;
+}
+.tab-btn.active{background:var(--white);font-weight:bold;color:#000;border-bottom:1px solid var(--white);z-index:1}
+.tab-pane{display:none;background:var(--white);border:1px solid var(--gray3);border-top:none}
+.tab-pane.active{display:block}
+
+/* ── BOM Table ── */
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{padding:3px 6px;background:var(--gray1);border:1px solid var(--gray3);font-weight:bold;font-size:10px;text-align:left;color:#333;white-space:nowrap}
+td{padding:3px 6px;border-bottom:1px solid #E0DED8;color:#000;white-space:nowrap}
+tr.bom-row{cursor:pointer}
+tr.bom-row:nth-child(even) td{background:#F8F7F4}
+tr.bom-row:hover td{background:#D0E4F8}
+tr.bom-row.selected td{background:var(--hi);color:var(--hi-t)}
+tr.bom-row.selected td.td-dim{color:#cce}
+.td-num{font-family:var(--mono);text-align:right}
+.td-dim{font-family:var(--mono);color:#555;font-size:10px}
+.bom-foot{padding:4px 6px;display:flex;justify-content:space-between;align-items:center;background:var(--gray0);border-top:1px solid var(--gray3)}
+
+/* ── Status bar ── */
+.status-bar{height:20px;background:var(--gray0);border-top:1px solid var(--gray3);display:flex;align-items:stretch;flex-shrink:0}
+.st-panel{padding:0 8px;display:flex;align-items:center;border-right:1px solid var(--gray3);font-size:11px;white-space:nowrap;gap:4px}
+.st-panel:first-child{border-left:none}
+.st-val{font-family:var(--mono);font-weight:bold;color:var(--navy)}
+.st-ok{color:var(--green);font-weight:bold}
+
+/* ── View controls ── */
+.view-controls{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:2px;pointer-events:all}
+.view-btn{
+  width:28px;height:22px;background:rgba(220,216,200,.9);
+  border:2px solid;border-color:rgba(255,255,255,.9) rgba(80,80,80,.8) rgba(80,80,80,.8) rgba(255,255,255,.9);
+  font-family:var(--font);font-size:10px;color:#000;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.view-btn:active{border-color:rgba(80,80,80,.8) rgba(255,255,255,.9) rgba(255,255,255,.9) rgba(80,80,80,.8)}
+.view-btn.active{background:rgba(180,176,160,.9)}
+.view-info{position:absolute;bottom:8px;left:8px;font-size:10px;color:rgba(200,210,220,.6);line-height:1.7;pointer-events:none;font-family:var(--font)}
+
+/* ── Highlight hint ── */
+.bom-hint{font-size:10px;color:#666;padding:3px 6px;background:var(--gray0);border-top:1px solid var(--gray2);font-style:italic}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:16px}
+::-webkit-scrollbar-track{background:var(--gray1);border-left:1px solid var(--gray2)}
+::-webkit-scrollbar-thumb{background:var(--gray0);border:2px solid;border-color:var(--white) var(--gray3) var(--gray3) var(--white)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <span class="logo-name">BirdBox</span>
+    <span class="logo-sub">Open Source Printer Enclosure</span>
+  </div>
+  <div class="header-right">
+    <a class="hdr-btn" href="https://github.com/yourusername/birdbox" target="_blank">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      GitHub
+    </a>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-scroll">
+
+      <!-- Units -->
+      <div class="grp">
+        <div class="grp-title">Units</div>
+        <div class="grp-body">
+          <div class="radio-row">
+            <label><input type="radio" name="units" id="r-mm" checked onchange="setUnits('mm')"> Millimeters (mm)</label>
+            <label><input type="radio" name="units" id="r-in" onchange="setUnits('in')"> Inches</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desk -->
+      <div class="grp">
+        <div class="grp-title">Desk / Table</div>
+        <div class="grp-body">
+          <div class="inp-row">
+            <label for="inp-dw">Width</label>
+            <input class="xp-inp" type="number" id="inp-dw" value="1500" min="400" max="4000" oninput="onDimensionChange()">
+            <span class="inp-unit" id="unit-dw">mm</span>
+          </div>
+          <div class="slider-wrap"><input type="range" id="sl-dw" min="400" max="4000" value="1500" oninput="syncSlider('dw')"></div>
+          <div class="inp-row">
+            <label for="inp-dd">Depth</label>
+            <input class="xp-inp" type="number" id="inp-dd" value="800" min="300" max="2000" oninput="onDimensionChange()">
+            <span class="inp-unit" id="unit-dd">mm</span>
+          </div>
+          <div class="slider-wrap"><input type="range" id="sl-dd" min="300" max="2000" value="800" oninput="syncSlider('dd')"></div>
+        </div>
+      </div>
+
+      <!-- Enclosure -->
+      <div class="grp">
+        <div class="grp-title">Enclosure Frame</div>
+        <div class="grp-body">
+          <div class="inp-row">
+            <label for="inp-w">Width</label>
+            <input class="xp-inp" type="number" id="inp-w" value="1400" min="200" max="3000" oninput="onDimensionChange()">
+            <span class="inp-unit" id="unit-w">mm</span>
+          </div>
+          <div class="slider-wrap"><input type="range" id="sl-w" min="200" max="3000" value="1400" oninput="syncSlider('w')"></div>
+          <div class="inp-row">
+            <label for="inp-d">Depth</label>
+            <input class="xp-inp" type="number" id="inp-d" value="670" min="200" max="2000" oninput="onDimensionChange()">
+            <span class="inp-unit" id="unit-d">mm</span>
+          </div>
+          <div class="slider-wrap"><input type="range" id="sl-d" min="200" max="2000" value="670" oninput="syncSlider('d')"></div>
+          <div class="inp-row">
+            <label for="inp-h">Height</label>
+            <input class="xp-inp" type="number" id="inp-h" value="840" min="200" max="1200" oninput="onDimensionChange()">
+            <span class="inp-unit" id="unit-h">mm</span>
+          </div>
+          <div class="slider-wrap"><input type="range" id="sl-h" min="200" max="1200" value="840" oninput="syncSlider('h')"></div>
+        </div>
+      </div>
+
+      <!-- Panels -->
+      <div class="grp">
+        <div class="grp-title">Acrylic Panels</div>
+        <div class="grp-body">
+          <label class="chk-row"><input type="checkbox" id="chk-front" checked onchange="onDimensionChange()"> Front (door panel)</label>
+          <label class="chk-row"><input type="checkbox" id="chk-back"  checked onchange="onDimensionChange()"> Back</label>
+          <label class="chk-row"><input type="checkbox" id="chk-left"  checked onchange="onDimensionChange()"> Left side</label>
+          <label class="chk-row"><input type="checkbox" id="chk-right" checked onchange="onDimensionChange()"> Right side</label>
+          <label class="chk-row"><input type="checkbox" id="chk-top"   checked onchange="onDimensionChange()"> Top</label>
+          <label class="chk-row"><input type="checkbox" id="chk-bottom"       onchange="onDimensionChange()"> Bottom</label>
+        </div>
+      </div>
+
+      <!-- BOM -->
+      <div class="grp">
+        <div class="grp-title">Bill of Materials</div>
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="switchTab('extrusion',this)">Extrusions</button>
+          <button class="tab-btn"        onclick="switchTab('acrylic',this)">Acrylic</button>
+        </div>
+        <div class="tab-pane active" id="pane-extrusion">
+          <table>
+            <thead><tr><th>Piece</th><th>Length</th><th>Qty</th><th>Profile</th></tr></thead>
+            <tbody id="tbl-extrusion"></tbody>
+          </table>
+          <div class="bom-hint">Click a row to highlight in 3D view</div>
+        </div>
+        <div class="tab-pane" id="pane-acrylic">
+          <table>
+            <thead><tr><th>Panel</th><th>W × H</th><th>Qty</th></tr></thead>
+            <tbody id="tbl-acrylic"></tbody>
+          </table>
+        </div>
+        <div class="bom-foot">
+          <span id="bom-total-text" style="font-size:11px;color:#444"></span>
+          <button class="xp-btn" onclick="exportCSV()">Export CSV</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Status bar -->
+    <div class="status-bar">
+      <div class="st-panel">Desk: <span class="st-val" id="st-desk">—</span></div>
+      <div class="st-panel">Enc: <span class="st-val" id="st-enc">—</span></div>
+      <div class="st-panel"><span id="st-step" style="color:#888">STEP: —</span></div>
+      <div class="st-panel st-ok" id="st-status">● Ready</div>
+    </div>
+  </div>
+
+  <div class="viewport">
+    <canvas id="canvas3d"></canvas>
+    <div class="view-controls">
+      <button class="view-btn" onclick="resetCamera()" title="Reset view">⟳</button>
+      <button class="view-btn" onclick="setView('front')" title="Front">F</button>
+      <button class="view-btn" onclick="setView('top')" title="Top">T</button>
+      <button class="view-btn" onclick="setView('iso')" title="Isometric">◈</button>
+      <button class="view-btn" id="btn-panels" onclick="togglePanels()" title="Toggle panels">◻</button>
+      <button class="view-btn" id="btn-wire" onclick="toggleWireframe()" title="Wireframe">⬡</button>
+    </div>
+    <div class="view-info">
+      <div>LMB Orbit · RMB Pan · Scroll Zoom</div>
+      <div id="view-label">Isometric View</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── Constants ──────────────────────────────────────────────
+const INSET   = 3;
+const EX_WIDE = 40;
+const EX_NARR = 20;
+
+// ── State ──────────────────────────────────────────────────
+let state = {
+  DW:1500, DD:800,
+  W:1400, D:700, H:860,
+  units:'mm',
+  panels:{front:true,back:true,left:true,right:true,top:true,bottom:false}
+};
+let currentBOM    = {extrusions:[],acrylic:[]};
+let showPanels    = true;
+let wireframe     = false;
+let selectedBOMKey = null;
+
+// ── Mesh registry for BOM highlighting ─────────────────────
+let meshRegistry = {};
+
+function registerMesh(mesh, key) {
+  mesh.userData.bomKey = key;
+  if (!meshRegistry[key]) meshRegistry[key] = [];
+  meshRegistry[key].push(mesh);
+}
+
+const MAT_DEFAULT   = 0xb8c8d4;
+const MAT_HIGHLIGHT = 0xff8800;
+const MAT_DIM       = 0x6888a0;
+
+function highlightBOMKey(key) {
+  frameGroup.traverse(o => {
+    if (!o.isMesh || !o.userData.bomKey) return;
+    if (o.userData.bomKey === key) {
+      o.material.color.setHex(MAT_HIGHLIGHT);
+      o.material.emissive.setHex(0x331100);
+    } else {
+      o.material.color.setHex(MAT_DIM);
+      o.material.emissive.setHex(0x000000);
+    }
+  });
+}
+
+function clearHighlight() {
+  frameGroup.traverse(o => {
+    if (!o.isMesh || !o.userData.bomKey) return;
+    o.material.color.setHex(MAT_DEFAULT);
+    o.material.emissive.setHex(0x000000);
+  });
+}
+
+// ── Calculations ───────────────────────────────────────────
+function calcBOM(W, D, H, panels) {
+  const EW = EX_WIDE, EN = EX_NARR;
+  const widthRailLen = W;
+  const depthRailLen = D - 2*EN;
+  const postLen      = H - 2*EW;
+  const doorBotY     = EW - EN/2;
+  const doorTopY     = H - EN/2;
+  const doorSideLen  = (doorTopY - EN/2) - (doorBotY + EN/2);
+
+  const extrusions = [
+    { name:'Width Rail',       key:'widthRail',    profile:'2040', len:widthRailLen, qty:4 },
+    { name:'Depth Rail',       key:'depthRail',    profile:'2040', len:depthRailLen, qty:4 },
+    { name:'Corner Post',      key:'cornerPost',   profile:'2020', len:postLen,      qty:4 },
+    { name:'Door Top Rail',    key:'doorTopRail',  profile:'2020', len:widthRailLen, qty:1 },
+    { name:'Door Bottom Rail', key:'doorBotRail',  profile:'2020', len:widthRailLen, qty:1 },
+    { name:'Door Side Rail',   key:'doorSideRail', profile:'2040', len:doorSideLen,  qty:2 },
+  ];
+
+  const innerW     = W - 2*EN + 2*INSET;
+  const innerH     = postLen + 2*INSET;
+  const innerD     = depthRailLen - 2*EN + 2*INSET;
+  const doorInnerH = doorSideLen + 2*INSET;
+
+  const acrylicDefs = {
+    front:  {name:'Front Door Panel', w:innerW,        h:doorInnerH},
+    back:   {name:'Back Panel',       w:innerW,        h:innerH},
+    left:   {name:'Left Panel',       w:innerD+2*EN,   h:innerH},
+    right:  {name:'Right Panel',      w:innerD+2*EN,   h:innerH},
+    top:    {name:'Top Panel',        w:innerW,        h:innerD+2*EN},
+    bottom: {name:'Bottom Panel',     w:innerW,        h:innerD+2*EN},
+  };
+  const acrylic = Object.entries(panels).filter(([,v])=>v).map(([k])=>({...acrylicDefs[k],key:k}));
+  return {extrusions, acrylic};
+}
+
+// ── Unit helpers ───────────────────────────────────────────
+const MM_TO_IN = 1/25.4;
+function toDisp(mm)  { return state.units==='mm' ? mm : +(mm*MM_TO_IN).toFixed(3); }
+function fromDisp(v) { return state.units==='mm' ? v  : Math.round(v/MM_TO_IN); }
+function uL()        { return state.units==='mm' ? 'mm' : 'in'; }
+
+function setUnits(u) {
+  state.units = u;
+  const map = {dw:'DW',dd:'DD',w:'W',d:'D',h:'H'};
+  for (const [k,sk] of Object.entries(map)) {
+    document.getElementById('inp-'+k).value = toDisp(state[sk]);
+    const uel = document.getElementById('unit-'+k);
+    if (uel) uel.textContent = uL();
+  }
+  updateBOMDisplay();
+}
+
+// ── UI → State ─────────────────────────────────────────────
+function syncSlider(k) {
+  const stateKey = {dw:'DW',dd:'DD',w:'W',d:'D',h:'H'}[k];
+  const sl = document.getElementById('sl-'+k);
+  const inp = document.getElementById('inp-'+k);
+  state[stateKey] = parseInt(sl.value);
+  inp.value = toDisp(state[stateKey]);
+  onDimensionChange();
+}
+
+function onDimensionChange() {
+  const map = {dw:'DW',dd:'DD',w:'W',d:'D',h:'H'};
+  for (const [k,sk] of Object.entries(map)) {
+    const inp = document.getElementById('inp-'+k);
+    const sl  = document.getElementById('sl-'+k);
+    const raw = parseFloat(inp.value)||0;
+    state[sk] = Math.round(fromDisp(raw));
+    sl.value = state[sk];
+  }
+  state.panels = {
+    front:  document.getElementById('chk-front').checked,
+    back:   document.getElementById('chk-back').checked,
+    left:   document.getElementById('chk-left').checked,
+    right:  document.getElementById('chk-right').checked,
+    top:    document.getElementById('chk-top').checked,
+    bottom: document.getElementById('chk-bottom').checked,
+  };
+  selectedBOMKey = null;
+  updateStatus();
+  recalc();
+}
+
+function updateStatus() {
+  const u = uL();
+  document.getElementById('st-desk').textContent = `${toDisp(state.DW)}×${toDisp(state.DD)}${u}`;
+  document.getElementById('st-enc').textContent  = `${toDisp(state.W)}×${toDisp(state.D)}×${toDisp(state.H)}${u}`;
+}
+
+// ── Recalc ─────────────────────────────────────────────────
+function recalc() {
+  currentBOM = calcBOM(state.W, state.D, state.H, state.panels);
+  updateBOMDisplay();
+  rebuildScene();
+}
+
+function updateBOMDisplay() {
+  const u = uL();
+  const tbody = document.getElementById('tbl-extrusion');
+  tbody.innerHTML = currentBOM.extrusions.map(e => `
+    <tr class="bom-row${selectedBOMKey===e.key?' selected':''}" onclick="selectBOMRow('${e.key}',this)" data-key="${e.key}">
+      <td>${e.name}</td>
+      <td class="td-num">${toDisp(Math.round(e.len))}${u}</td>
+      <td class="td-num">${e.qty}</td>
+      <td class="td-dim">${e.profile}</td>
+    </tr>`).join('');
+
+  const tbody2 = document.getElementById('tbl-acrylic');
+  tbody2.innerHTML = currentBOM.acrylic.map(p => `
+    <tr>
+      <td>${p.name}</td>
+      <td class="td-dim">${toDisp(Math.round(p.w))}×${toDisp(Math.round(p.h))}${u}</td>
+      <td class="td-num">1</td>
+    </tr>`).join('');
+
+  const totalEx = currentBOM.extrusions.reduce((s,e)=>s+e.qty,0);
+  document.getElementById('bom-total-text').textContent =
+    `${totalEx} extrusions · ${currentBOM.acrylic.length} panels`;
+}
+
+function selectBOMRow(key, rowEl) {
+  if (selectedBOMKey === key) {
+    selectedBOMKey = null;
+    clearHighlight();
+    document.querySelectorAll('.bom-row').forEach(r => r.classList.remove('selected'));
+  } else {
+    selectedBOMKey = key;
+    highlightBOMKey(key);
+    document.querySelectorAll('.bom-row').forEach(r =>
+      r.classList.toggle('selected', r.dataset.key === key));
+  }
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('pane-'+tab).classList.add('active');
+}
+
+function exportCSV() {
+  const u = uL();
+  let csv = 'Type,Name,Profile,Length,Qty\n';
+  currentBOM.extrusions.forEach(e => {
+    csv += `Extrusion,"${e.name}",${e.profile},${toDisp(Math.round(e.len))}${u},${e.qty}\n`;
+  });
+  currentBOM.acrylic.forEach(p => {
+    csv += `Acrylic,"${p.name}",,${toDisp(Math.round(p.w))}x${toDisp(Math.round(p.h))}${u},1\n`;
+  });
+  const a = Object.assign(document.createElement('a'),{
+    href: URL.createObjectURL(new Blob([csv],{type:'text/csv'})),
+    download: `birdbox_${state.W}x${state.D}x${state.H}.csv`
+  });
+  a.click();
+}
+
+// ── STEP loading ───────────────────────────────────────────
+const STEP_NAMES = {
+  bracket: '2040 ANGLE BRACKET-FLAT 01 2024.STEP',
+  hinge:   'Hinge.step',
+};
+// Fixed-size parts loaded from STEP; extrusions stay procedural (arbitrary length)
+const stepGeos = {};
+
+// occt-import-js v0.0.x: mesh arrays expose .get(i), sized by mesh.vertex_count / mesh.index_count
+function meshListFrom(meshes) {
+  // result.meshes may be a plain JS array or an Emscripten vector
+  if (typeof meshes.size === 'function') {
+    return Array.from({length: meshes.size()}, (_, i) => meshes.get(i));
+  }
+  return Array.from(meshes);
+}
+
+function toF32(v) {
+  if (v instanceof Float32Array) return v;
+  if (v instanceof Float64Array) return new Float32Array(v);
+  if (typeof v?.size === 'function') { const a=new Float32Array(v.size()); for(let i=0;i<a.length;i++) a[i]=v.get(i); return a; }
+  return new Float32Array(v);
+}
+function toU32(v) {
+  if (v instanceof Uint32Array) return v;
+  if (typeof v?.size === 'function') { const a=new Uint32Array(v.size()); for(let i=0;i<a.length;i++) a[i]=v.get(i); return a; }
+  return new Uint32Array(v);
+}
+
+function singleMeshGeo(m) {
+  const posAttr = m.attributes?.position;
+  const norAttr = m.attributes?.normal;
+  const idxAttr = m.index;
+  if (!posAttr) return null;
+  const pa = toF32(posAttr.array ?? posAttr);
+  const na = norAttr ? toF32(norAttr.array ?? norAttr) : null;
+  const ia = toU32(idxAttr?.array ?? idxAttr);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pa), 3));
+  if (na) geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(na), 3));
+  geo.setIndex(new THREE.BufferAttribute(new Uint32Array(ia), 1));
+  if (!na) geo.computeVertexNormals();
+  geo.computeBoundingBox();
+  return geo;
+}
+
+function mergeSTEPMeshes(meshes) {
+  const pos = [], nor = [], idx = [];
+  let off = 0;
+  for (const m of meshListFrom(meshes)) {
+    // occt-import-js returns Three.js-style {attributes:{position,normal}, index}
+    const posAttr = m.attributes?.position;
+    const norAttr = m.attributes?.normal;
+    const idxAttr = m.index;
+    console.log('[mesh] posAttr:', posAttr?.constructor?.name, 'array:', posAttr?.array?.constructor?.name, posAttr?.array?.length);
+    if (!posAttr) { console.warn('[mesh] no position attribute'); continue; }
+    const pa = toF32(posAttr.array ?? posAttr);
+    const na = norAttr ? toF32(norAttr.array ?? norAttr) : null;
+    const ia = toU32(idxAttr?.array ?? idxAttr);
+    const vc = pa.length / 3;
+    for (const v of pa) pos.push(v);
+    if (na) for (const n of na) nor.push(n);
+    for (const i of ia) idx.push(i + off);
+    off += vc;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  if (nor.length) geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nor), 3));
+  geo.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
+  if (!nor.length) geo.computeVertexNormals();
+  geo.computeBoundingBox();
+  return geo;
+}
+
+// Center geometry at origin, return its longest axis info
+function centerAndAnalyze(geo) {
+  const bb = geo.boundingBox;
+  const cx = (bb.min.x + bb.max.x) / 2;
+  const cy = (bb.min.y + bb.max.y) / 2;
+  const cz = (bb.min.z + bb.max.z) / 2;
+  geo.translate(-cx, -cy, -cz);
+  geo.computeBoundingBox();
+  const sx = bb.max.x - bb.min.x;
+  const sy = bb.max.y - bb.min.y;
+  const sz = bb.max.z - bb.min.z;
+  const sizes = [{v:sx,a:'x'},{v:sy,a:'y'},{v:sz,a:'z'}];
+  sizes.sort((a,b) => b.v - a.v);
+  return { geo, bb: geo.boundingBox, axisLen: sizes[0].v, axis: sizes[0].a };
+}
+
+async function tryLoadSTEP() {
+  const el = document.getElementById('st-step');
+  el.textContent = 'STEP: loading…';
+  el.style.color = '#888';
+  try {
+    // Load occt-import-js from CDN
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.22/dist/occt-import-js.js';
+      s.onload = res; s.onerror = () => rej(new Error('CDN load failed'));
+      document.head.appendChild(s);
+    });
+    const oc = await window.occtimportjs({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/occt-import-js@0.0.22/dist/${f}`
+    });
+
+    let loaded = 0;
+    for (const [key, fname] of Object.entries(STEP_NAMES)) {
+      try {
+        const resp = await fetch(fname);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const buf  = await resp.arrayBuffer();
+        const res  = oc.ReadStepFile(new Uint8Array(buf), null);
+        const mCount = typeof res.meshes?.size === 'function' ? res.meshes.size() : res.meshes?.length;
+        if (!res.success || !mCount) throw new Error(`parse failed (success=${res.success}, meshCount=${mCount})`);
+        console.log(`[STEP] ${fname}: success, ${mCount} meshes`);
+        if (key === 'hinge') {
+          const list = meshListFrom(res.meshes);
+          const geos = list.map(m => singleMeshGeo(m)).filter(Boolean);
+          geos.forEach((g, i) => {
+            g.computeBoundingBox();
+            const bb = g.boundingBox;
+            const cx = (bb.min.x + bb.max.x) / 2;
+            const cy = (bb.min.y + bb.max.y) / 2;
+            const cz = (bb.min.z + bb.max.z) / 2;
+            g.translate(-cx, -cy, -cz);
+            g.computeBoundingBox();
+            const bb2 = g.boundingBox;
+            console.log(`[STEP] hinge[${i}] centered bb: x[${bb2.min.x.toFixed(1)},${bb2.max.x.toFixed(1)}] y[${bb2.min.y.toFixed(1)},${bb2.max.y.toFixed(1)}] z[${bb2.min.z.toFixed(1)},${bb2.max.z.toFixed(1)}]`);
+          });
+          stepGeos.hinge = geos; // array of 2 geos: [sleeve, solid]
+        } else {
+          const info = centerAndAnalyze(mergeSTEPMeshes(res.meshes));
+          const {bb} = info;
+          console.log(`[STEP] ${key} bb: x[${bb.min.x.toFixed(1)},${bb.max.x.toFixed(1)}] y[${bb.min.y.toFixed(1)},${bb.max.y.toFixed(1)}] z[${bb.min.z.toFixed(1)},${bb.max.z.toFixed(1)}] axisLen=${info.axisLen.toFixed(1)} axis=${info.axis}`);
+          stepGeos[key] = info;
+        }
+        loaded++;
+        el.textContent = `STEP: ${loaded}/3`;
+      } catch (e) {
+        console.warn(`STEP skip [${key}]:`, e.message);
+      }
+    }
+
+    if (loaded > 0) {
+      el.textContent = `STEP: ${Object.keys(stepGeos).join(' + ')} ✓`;
+      el.style.color = 'var(--green)';
+      rebuildScene();
+    } else {
+      el.textContent = 'STEP: need server';
+      el.style.color = '#888';
+    }
+  } catch (e) {
+    el.textContent = 'STEP: procedural';
+    el.style.color = '#888';
+    console.info('STEP unavailable:', e.message);
+  }
+}
+
+
+// ── Three.js Setup ─────────────────────────────────────────
+const canvas = document.getElementById('canvas3d');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x0D0F14, 1);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 1, 100000);
+
+scene.add(new THREE.AmbientLight(0x8ab4cc, 0.5));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(3000,4000,2000); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.near=10; sun.shadow.camera.far=30000;
+sun.shadow.camera.left=sun.shadow.camera.bottom=-4000;
+sun.shadow.camera.right=sun.shadow.camera.top=4000;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x4488cc, 0.35);
+fill.position.set(-2000,500,-1500); scene.add(fill);
+
+const grid = new THREE.GridHelper(12000,60,0x1a2230,0x111820);
+grid.position.y = -2; scene.add(grid);
+
+// ── Materials ──────────────────────────────────────────────
+const matEx = new THREE.MeshPhysicalMaterial({
+  color:0xb8c8d4, metalness:0.75, roughness:0.25, reflectivity:0.5
+});
+const matPanel = new THREE.MeshPhysicalMaterial({
+  color:0x99ddff, transparent:true, opacity:0.18,
+  roughness:0.05, metalness:0.0, side:THREE.DoubleSide
+});
+const matDesk = new THREE.MeshPhysicalMaterial({color:0x1c1c1c, metalness:0, roughness:0.85});
+
+// ── T-slot profiles ────────────────────────────────────────
+function makeExtrusionShape2040() {
+  const W=EX_NARR, H=EX_WIDE, hw=W/2, hh=H/2, sw=6.5, sd=4.5;
+  const s = new THREE.Shape();
+  s.moveTo(-hw,-hh);
+  s.lineTo(-sw/2,-hh); s.lineTo(-sw/2,-hh+sd); s.lineTo(sw/2,-hh+sd); s.lineTo(sw/2,-hh);
+  s.lineTo(hw,-hh);
+  s.lineTo(hw,-sw/2); s.lineTo(hw-sd,-sw/2); s.lineTo(hw-sd,sw/2); s.lineTo(hw,sw/2);
+  s.lineTo(hw,hh);
+  s.lineTo(sw/2,hh); s.lineTo(sw/2,hh-sd); s.lineTo(-sw/2,hh-sd); s.lineTo(-sw/2,hh);
+  s.lineTo(-hw,hh);
+  s.lineTo(-hw,sw/2); s.lineTo(-hw+sd,sw/2); s.lineTo(-hw+sd,-sw/2); s.lineTo(-hw,-sw/2);
+  s.lineTo(-hw,-hh);
+  const bore=new THREE.Path();
+  bore.moveTo(-6,-5); bore.lineTo(6,-5); bore.lineTo(6,5); bore.lineTo(-6,5); bore.closePath();
+  s.holes.push(bore); return s;
+}
+
+function makeExtrusionShape2020() {
+  const hw=EX_NARR/2, hh=EX_NARR/2, sw=6.5, sd=4.5;
+  const s = new THREE.Shape();
+  s.moveTo(-hw,-hh);
+  s.lineTo(-sw/2,-hh); s.lineTo(-sw/2,-hh+sd); s.lineTo(sw/2,-hh+sd); s.lineTo(sw/2,-hh);
+  s.lineTo(hw,-hh);
+  s.lineTo(hw,-sw/2); s.lineTo(hw-sd,-sw/2); s.lineTo(hw-sd,sw/2); s.lineTo(hw,sw/2);
+  s.lineTo(hw,hh);
+  s.lineTo(sw/2,hh); s.lineTo(sw/2,hh-sd); s.lineTo(-sw/2,hh-sd); s.lineTo(-sw/2,hh);
+  s.lineTo(-hw,hh);
+  s.lineTo(-hw,sw/2); s.lineTo(-hw+sd,sw/2); s.lineTo(-hw+sd,-sw/2); s.lineTo(-hw,-sw/2);
+  s.lineTo(-hw,-hh);
+  const bore=new THREE.Path();
+  bore.moveTo(-4,-4); bore.lineTo(4,-4); bore.lineTo(4,4); bore.lineTo(-4,4); bore.closePath();
+  s.holes.push(bore); return s;
+}
+
+// 2040 wide: 40mm in X, 20mm in Y — door side rails (rotation.x=PI/2 → 40mm in X, 20mm in Z)
+function makeExtrusionShape2040_wide() {
+  const W=EX_WIDE, H=EX_NARR, hw=W/2, hh=H/2, sw=6.5, sd=4.5;
+  const s = new THREE.Shape();
+  s.moveTo(-hw,-hh);
+  s.lineTo(-sw/2,-hh); s.lineTo(-sw/2,-hh+sd); s.lineTo(sw/2,-hh+sd); s.lineTo(sw/2,-hh);
+  s.lineTo(hw,-hh);
+  s.lineTo(hw,-sw/2); s.lineTo(hw-sd,-sw/2); s.lineTo(hw-sd,sw/2); s.lineTo(hw,sw/2);
+  s.lineTo(hw,hh);
+  s.lineTo(sw/2,hh); s.lineTo(sw/2,hh-sd); s.lineTo(-sw/2,hh-sd); s.lineTo(-sw/2,hh);
+  s.lineTo(-hw,hh);
+  s.lineTo(-hw,sw/2); s.lineTo(-hw+sd,sw/2); s.lineTo(-hw+sd,-sw/2); s.lineTo(-hw,-sw/2);
+  s.lineTo(-hw,-hh);
+  const bore=new THREE.Path();
+  bore.moveTo(-5,-6); bore.lineTo(5,-6); bore.lineTo(5,6); bore.lineTo(-5,6); bore.closePath();
+  s.holes.push(bore); return s;
+}
+
+const _shape2040      = makeExtrusionShape2040();
+const _shape2020      = makeExtrusionShape2020();
+const _shape2040_wide = makeExtrusionShape2040_wide();
+
+function makeExtrusionGeo(length, shape) {
+  const geo = new THREE.ExtrudeGeometry(shape, {depth:length, bevelEnabled:false});
+  geo.translate(0, 0, -length/2);
+  return geo;
+}
+
+// Place a 2040 rail and register it with a BOM key
+function placeRail2040(group, length, axis, px, py, pz, bomKey) {
+  const shape = axis==='ydoor' ? _shape2040_wide : _shape2040;
+  const mesh  = new THREE.Mesh(makeExtrusionGeo(length, shape), matEx.clone());
+  mesh.castShadow = mesh.receiveShadow = true;
+  if (axis==='x')     mesh.rotation.y = -Math.PI/2;
+  if (axis==='ydoor') mesh.rotation.x =  Math.PI/2;
+  mesh.position.set(px, py, pz);
+  group.add(mesh);
+  if (bomKey) registerMesh(mesh, bomKey);
+  return mesh;
+}
+
+// Place a 2020 horizontal rail (door top/bottom)
+function placeRail2020h(group, length, px, py, pz, bomKey) {
+  const mesh = new THREE.Mesh(makeExtrusionGeo(length, _shape2020), matEx.clone());
+  mesh.castShadow = mesh.receiveShadow = true;
+  mesh.rotation.y = -Math.PI/2;
+  mesh.position.set(px, py, pz);
+  group.add(mesh);
+  if (bomKey) registerMesh(mesh, bomKey);
+  return mesh;
+}
+
+// Place a 2020 vertical post
+function placePost2020(group, length, px, py, pz, bomKey) {
+  const mesh = new THREE.Mesh(makeExtrusionGeo(length, _shape2020), matEx.clone());
+  mesh.castShadow = mesh.receiveShadow = true;
+  mesh.rotation.x = Math.PI/2;
+  mesh.position.set(px, py, pz);
+  group.add(mesh);
+  if (bomKey) registerMesh(mesh, bomKey);
+  return mesh;
+}
+
+// ── Panel builder ──────────────────────────────────────────
+function makePanel(w, h) {
+  return new THREE.Mesh(new THREE.BoxGeometry(w,h,4), matPanel.clone());
+}
+
+// ── Angle bracket ──────────────────────────────────────────
+// Large flat outside corner bracket (5-sided flat plate).
+// Mounts on the OUTSIDE of corners where two extrusions meet.
+// dirX / dirZ: +1 or -1, direction each arm extends from the corner.
+// Bracket material — DoubleSide so mirrored instances shade correctly
+const matBracket = new THREE.MeshPhysicalMaterial({
+  color:0x6a7a8a, metalness:0.88, roughness:0.18, side:THREE.DoubleSide
+});
+
+// Aligned transform from align.html (front-left bottom corner reference):
+//   position offset from outer corner: [-10.5, 39.0, 10.0]
+//   rotation (deg → rad):              [-90°, 0°, 0°]
+const BRACKET_POS = [-2.5, 40.0, -40.0];
+const BRACKET_ROT = [-Math.PI/2, Math.PI/2, Math.PI/2];
+
+// Procedural L-bracket fallback (shown before STEP loads)
+function makeProceduralBracket() {
+  const s = new THREE.Shape();
+  s.moveTo(0,0); s.lineTo(60,0); s.lineTo(60,20); s.lineTo(20,20); s.lineTo(20,60); s.lineTo(0,60); s.closePath();
+  return new THREE.Mesh(new THREE.ExtrudeGeometry(s,{depth:5,bevelEnabled:false}), matBracket.clone());
+}
+
+// Place one bracket at a corner.
+// cornerX/Y/Z = outer corner vertex in scene coords.
+// scaleX/Y/Z  = +1 or -1 to mirror the reference transform for other corners.
+function placeAngleBracket(group, cornerX, cornerY, cornerZ, scaleX, scaleY, scaleZ) {
+  let mesh;
+  if (stepGeos.bracket) {
+    mesh = new THREE.Mesh(stepGeos.bracket.geo.clone(), matBracket.clone());
+    mesh.rotation.set(...BRACKET_ROT);
+    mesh.position.set(...BRACKET_POS);
+  } else {
+    mesh = makeProceduralBracket();
+  }
+  mesh.castShadow = true;
+  const g = new THREE.Group();
+  g.add(mesh);
+  g.scale.set(scaleX, scaleY, scaleZ);
+  g.position.set(cornerX, cornerY, cornerZ);
+  group.add(g);
+}
+
+// Place 4 brackets on the outer corners of one horizontal frame plane.
+// yCorner = bottom face of the rail for bottom plane (0), top face for top plane (H).
+// scaleY  = +1 for bottom plane, -1 for top plane (flips bracket vertically).
+function placePlaneBrackets(group, yCorner, scaleY, W, D) {
+  placeAngleBracket(group, -(W/2), yCorner,   0, +1, scaleY, +1);
+  placeAngleBracket(group, +(W/2), yCorner,   0, -1, scaleY, +1);
+  placeAngleBracket(group, -(W/2), yCorner,  -D, +1, scaleY, -1);
+  placeAngleBracket(group, +(W/2), yCorner,  -D, -1, scaleY, -1);
+}
+
+// 4 flat horizontal brackets on the top face of the enclosure
+function placeTopFaceBrackets(group, W, D, H) {
+  const corners = [
+    [-(W/2),  0, +1, +1],
+    [+(W/2),  0, -1, +1],
+    [-(W/2), -D, +1, -1],
+    [+(W/2), -D, -1, -1],
+  ];
+  for (const [cx, cz, sx, sz] of corners) {
+    let mesh;
+    if (stepGeos.bracket) {
+      mesh = new THREE.Mesh(stepGeos.bracket.geo.clone(), matBracket.clone());
+      mesh.rotation.set(-Math.PI/2, 0, 0);  // flat horizontal
+      mesh.position.set(40, 2.5, -40);
+    } else {
+      mesh = makeProceduralBracket();
+    }
+    mesh.castShadow = true;
+    const g = new THREE.Group();
+    g.add(mesh);
+    g.scale.set(sx, 1, sz);
+    g.position.set(cx, H, cz);
+    group.add(g);
+  }
+}
+
+// ── Door-face brackets (4 corners of the door frame) ───────
+// Offset to fine-tune position: adjust DOOR_BRACKET_OFFSET
+const BRACKET_ROT_Z = [0, Math.PI, Math.PI/2]; // door/rear face brackets — arms lie in XY plane
+const DOOR_BRACKET_OFFSET = new THREE.Vector3(20, -10, 52.5);
+
+function placeDoorBrackets(group, W, doorBotY, doorTopY, doorZ) {
+  const sideX = W/2 - EX_WIDE/2;
+  const corners = [
+    [-sideX, doorBotY, +1, +1],
+    [+sideX, doorBotY, -1, +1],
+    [-sideX, doorTopY, +1, -1],
+    [+sideX, doorTopY, -1, -1],
+  ];
+  for (const [cx, cy, sx, sy] of corners) {
+    let mesh;
+    if (stepGeos.bracket) {
+      mesh = new THREE.Mesh(stepGeos.bracket.geo.clone(), matBracket.clone());
+      mesh.rotation.set(...BRACKET_ROT_Z);
+      mesh.position.set(
+        BRACKET_POS[0] + DOOR_BRACKET_OFFSET.x,
+        BRACKET_POS[1] + DOOR_BRACKET_OFFSET.y,
+        BRACKET_POS[2] + DOOR_BRACKET_OFFSET.z
+      );
+    } else {
+      mesh = makeProceduralBracket();
+    }
+    mesh.castShadow = true;
+    const g = new THREE.Group();
+    g.add(mesh);
+    g.scale.set(sx, sy, 1);
+    g.position.set(cx, cy, doorZ);
+    group.add(g);
+  }
+}
+
+// ── Rear-face brackets (4 corners of the rear plane) ───────
+// Offset to fine-tune position: adjust REAR_BRACKET_OFFSET
+const REAR_BRACKET_OFFSET = new THREE.Vector3(42.5, 0, 52.5);
+
+function placeRearBrackets(group, W, D, H) {
+  const zBack = -(D - EX_NARR/2);
+  const corners = [
+    [-(W/2), 0,  +1, +1],
+    [+(W/2), 0,  -1, +1],
+    [-(W/2), H,  +1, -1],
+    [+(W/2), H,  -1, -1],
+  ];
+  for (const [cx, cy, sx, sy] of corners) {
+    let mesh;
+    if (stepGeos.bracket) {
+      mesh = new THREE.Mesh(stepGeos.bracket.geo.clone(), matBracket.clone());
+      mesh.rotation.set(...BRACKET_ROT_Z);
+      mesh.position.set(
+        BRACKET_POS[0] + REAR_BRACKET_OFFSET.x,
+        BRACKET_POS[1] + REAR_BRACKET_OFFSET.y,
+        BRACKET_POS[2] + REAR_BRACKET_OFFSET.z
+      );
+    } else {
+      mesh = makeProceduralBracket();
+    }
+    mesh.castShadow = true;
+    const g = new THREE.Group();
+    g.add(mesh);
+    g.scale.set(sx, sy, -1);
+    g.position.set(cx, cy, zBack);
+    group.add(g);
+  }
+}
+
+// ── STEP hinge placement ────────────────────────────────────
+// Tune these to align the hinge with the door rail:
+const HINGE_SLEEVE_ROT    = [0, Math.PI/2, Math.PI/1];
+const HINGE_SLEEVE_OFFSET = new THREE.Vector3(0, 94, -8);
+const HINGE_SOLID_ROT     = [0, Math.PI/2, Math.PI/1];
+const HINGE_SOLID_OFFSET  = new THREE.Vector3(-55, 94, -16);
+const matHingeSleeve = new THREE.MeshPhysicalMaterial({color:0x8899aa, metalness:0.88, roughness:0.15, side:THREE.DoubleSide});
+const matHingeSolid  = new THREE.MeshPhysicalMaterial({color:0x6a7a8a, metalness:0.88, roughness:0.18, side:THREE.DoubleSide});
+
+function placeSTEPHinge(group, x, y, z) {
+  if (!stepGeos.hinge) return;
+  const [geoSleeve, geoSolid] = stepGeos.hinge;
+  const g = new THREE.Group();
+  if (geoSleeve) {
+    const m = new THREE.Mesh(geoSleeve.clone(), matHingeSleeve.clone());
+    m.rotation.set(...HINGE_SLEEVE_ROT);
+    m.position.copy(HINGE_SLEEVE_OFFSET);
+    g.add(m);
+  }
+  if (geoSolid) {
+    const m = new THREE.Mesh(geoSolid.clone(), matHingeSolid.clone());
+    m.rotation.set(...HINGE_SOLID_ROT);
+    m.position.copy(HINGE_SOLID_OFFSET);
+    g.add(m);
+  }
+  g.position.set(x, y, z);
+  group.add(g);
+}
+
+// ── Continuous hinge ───────────────────────────────────────
+// Knuckle-style continuous hinge at door top: two interlocking leaves.
+// Runs the full door width along X. Each leaf is ~13mm wide, 4mm thick.
+const matHinge = new THREE.MeshPhysicalMaterial({color:0x667788, metalness:0.9, roughness:0.15});
+
+function placeHinge(group, totalWidth, px, py, pz) {
+  // Leaf 1 (enclosure side, fixed)
+  const leaf1 = new THREE.Mesh(new THREE.BoxGeometry(totalWidth, 4, 14), matHinge.clone());
+  leaf1.position.set(px, py, pz - 7);
+  group.add(leaf1);
+  // Leaf 2 (door side, moves with door)
+  const leaf2 = new THREE.Mesh(new THREE.BoxGeometry(totalWidth, 4, 14), matHinge.clone());
+  leaf2.position.set(px, py, pz + 7);
+  group.add(leaf2);
+  // Knuckle barrel
+  const barrel = new THREE.Mesh(
+    new THREE.CylinderGeometry(4, 4, totalWidth, 12),
+    matHinge.clone()
+  );
+  barrel.rotation.z = Math.PI/2;
+  barrel.position.set(px, py + 2, pz);
+  group.add(barrel);
+}
+
+// ── Desk ───────────────────────────────────────────────────
+let deskMesh = null;
+function updateDesk(DW, DD, encD) {
+  if (deskMesh) scene.remove(deskMesh);
+  deskMesh = new THREE.Mesh(new THREE.BoxGeometry(DW,18,DD), matDesk);
+  deskMesh.position.set(0, -9, -encD/2);
+  deskMesh.receiveShadow = true;
+  scene.add(deskMesh);
+}
+
+// ── Scene rebuild ──────────────────────────────────────────
+let frameGroup = new THREE.Group();
+scene.add(frameGroup);
+
+function rebuildScene() {
+  scene.remove(frameGroup);
+  frameGroup = new THREE.Group();
+  meshRegistry = {};
+  scene.add(frameGroup);
+
+  const {W, D, H, DW, DD, panels} = state;
+  updateDesk(DW, DD, D);
+
+  const EW=EX_WIDE, EN=EX_NARR;
+  const yBot=EW/2,  yTop=H-EW/2;
+  const zFront=-EN/2, zBack=-(D-EN/2);
+  const xLeft=-(W/2-EN/2), xRight=W/2-EN/2;
+  const postLen      = H - 2*EW;
+  const depthRailLen = D - 2*EN;
+
+  // Width rails (x-axis)
+  [yBot,yTop].forEach(y =>
+    [zFront,zBack].forEach(z =>
+      placeRail2040(frameGroup, W, 'x', 0, y, z, 'widthRail')));
+
+  // Depth rails (z-axis)
+  [yBot,yTop].forEach(y =>
+    [xLeft,xRight].forEach(x =>
+      placeRail2040(frameGroup, depthRailLen, 'z', x, y, -D/2, 'depthRail')));
+
+  // Corner posts (2020 vertical)
+  [zFront,zBack].forEach(z =>
+    [xLeft,xRight].forEach(x =>
+      placePost2020(frameGroup, postLen, x, H/2, z, 'cornerPost')));
+
+  // ── Door frame geometry constants (used by both brackets and rails) ──
+  const doorZ    = EN/2 + 3;
+  const doorBotY = EW - EN/2;
+  const doorTopY = H - EN/2;
+
+  // ── Angle brackets at outside corners ──
+  placePlaneBrackets(frameGroup, 0,  +1, W, D); // bottom corners
+  placePlaneBrackets(frameGroup, H,  -1, W, D); // top of vertical sides
+  placeTopFaceBrackets(frameGroup, W, D, H);    // top face horizontal brackets
+  placeDoorBrackets(frameGroup, W, doorBotY, doorTopY, doorZ); // door frame corners
+  placeRearBrackets(frameGroup, W, D, H);       // rear face corners
+
+  // ── Door frame ──
+  const doorSideBot = doorBotY + EN/2;
+  const doorSideTop = doorTopY - EN/2;
+  const doorSideLen = doorSideTop - doorSideBot;
+  const doorSideMidY = (doorSideBot + doorSideTop) / 2;
+  const doorSideX = W/2 - EW/2;
+
+  placeRail2020h(frameGroup, W, 0, doorBotY, doorZ, 'doorBotRail');
+  placeRail2020h(frameGroup, W, 0, doorTopY, doorZ, 'doorTopRail');
+  [-doorSideX, doorSideX].forEach(x =>
+    placeRail2040(frameGroup, doorSideLen, 'ydoor', x, doorSideMidY, doorZ, 'doorSideRail'));
+
+  // ── STEP hinges — up to 4 pairs, 100mm inset from side rails, equidistant ──
+  {
+    const HINGE_INSET   = 180;  // mm in from each side rail inner edge
+    const HINGE_MIN_GAP = 180;  // drop a pair if spacing falls below this
+    const HINGE_MAX     = 4;
+    const HINGE_Y       = H - 90;
+    const halfSpan      = W/2 - EX_WIDE/2;  // inner edge of door side rail
+    const xLeft         = -halfSpan + HINGE_INSET;
+    const xRight        =  halfSpan - HINGE_INSET;
+    const totalSpan     = xRight - xLeft;
+
+    let n = HINGE_MAX;
+    while (n > 1 && totalSpan / (n - 1) < HINGE_MIN_GAP) n--;
+
+    for (let i = 0; i < n; i++) {
+      const x = n === 1 ? 0 : xLeft + (totalSpan / (n - 1)) * i;
+      placeSTEPHinge(frameGroup, x, HINGE_Y, doorZ);
+    }
+  }
+
+
+  // ── Acrylic panels ──
+  // Tweak offsets here to fine-tune panel positions independently:
+  const DOOR_PANEL_OFFSET  = new THREE.Vector3(0, 0, 0); // door glass (front-facing)
+  const REAR_PANEL_OFFSET  = new THREE.Vector3(0, 0, 0); // rear wall panel
+
+  if (showPanels) {
+    const innerW = W - 2*EN + 2*INSET;
+    const innerD = depthRailLen - 2*EN + 2*INSET;
+    const innerH = postLen + 2*INSET;
+    const panMidY = H/2, panMidZ = -D/2;
+
+    if (panels.back) {
+      const p = makePanel(innerW, innerH);
+      p.position.set(
+        0              + REAR_PANEL_OFFSET.x,
+        panMidY        + REAR_PANEL_OFFSET.y,
+        zBack          + REAR_PANEL_OFFSET.z
+      );
+      frameGroup.add(p);
+    }
+    if (panels.left) {
+      const p = makePanel(innerD+2*EN, innerH);
+      p.rotation.y = Math.PI/2;
+      p.position.set(xLeft, panMidY, panMidZ);
+      frameGroup.add(p);
+    }
+    if (panels.right) {
+      const p = makePanel(innerD+2*EN, innerH);
+      p.rotation.y = Math.PI/2;
+      p.position.set(xRight, panMidY, panMidZ);
+      frameGroup.add(p);
+    }
+    if (panels.top) {
+      const p = makePanel(innerW, innerD+2*EN);
+      p.rotation.x = Math.PI/2;
+      p.position.set(0, H, panMidZ);
+      frameGroup.add(p);
+    }
+    if (panels.bottom) {
+      const p = makePanel(innerW, innerD+2*EN);
+      p.rotation.x = Math.PI/2;
+      p.position.set(0, 0, panMidZ);
+      frameGroup.add(p);
+    }
+    if (panels.front) {
+      // Full-height front panel (behind door frame)
+      const p = makePanel(innerW, innerH);
+      p.position.set(
+        0              + DOOR_PANEL_OFFSET.x,
+        panMidY        + DOOR_PANEL_OFFSET.y,
+        -EN/2          + DOOR_PANEL_OFFSET.z
+      );
+      frameGroup.add(p);
+
+      // Door glass panel (inset inside door frame)
+      const dp = makePanel(W-2*EW+2*INSET, doorSideLen+2*INSET);
+      dp.material.color.setHex(0xaaddff);
+      dp.position.set(
+        0              + DOOR_PANEL_OFFSET.x,
+        doorSideMidY   + DOOR_PANEL_OFFSET.y,
+        doorZ+3        + DOOR_PANEL_OFFSET.z
+      );
+      frameGroup.add(dp);
+    }
+  }
+
+  // Re-apply highlight if one was selected
+  if (selectedBOMKey) highlightBOMKey(selectedBOMKey);
+  if (wireframe) frameGroup.traverse(o => { if(o.isMesh) o.material.wireframe=true; });
+
+  fitCamera();
+}
+
+// ── Orbit controls ─────────────────────────────────────────
+const orbit = {
+  theta:Math.PI*0.25, phi:Math.PI/3.5, r:2000,
+  target:new THREE.Vector3(),
+  dragging:false, button:-1, last:{x:0,y:0}
+};
+
+function fitCamera() {
+  const {W,D,H} = state;
+  orbit.r = Math.max(W,D,H) * 2.8;
+  orbit.target.set(0, H/2, -D/2);
+  applyOrbit();
+}
+
+function applyOrbit() {
+  const sp=Math.sin(orbit.phi), cp=Math.cos(orbit.phi);
+  const st=Math.sin(orbit.theta), ct=Math.cos(orbit.theta);
+  camera.position.set(
+    orbit.target.x + orbit.r*sp*st,
+    orbit.target.y + orbit.r*cp,
+    orbit.target.z + orbit.r*sp*ct
+  );
+  camera.lookAt(orbit.target);
+}
+
+canvas.addEventListener('mousedown', e => {
+  orbit.dragging=true; orbit.button=e.button;
+  orbit.last={x:e.clientX, y:e.clientY};
+  e.preventDefault();
+});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+window.addEventListener('mousemove', e => {
+  if (!orbit.dragging) return;
+  const dx=e.clientX-orbit.last.x, dy=e.clientY-orbit.last.y;
+  orbit.last={x:e.clientX, y:e.clientY};
+  if (orbit.button===0) {
+    orbit.theta -= dx*0.007;
+    orbit.phi = Math.max(0.05, Math.min(Math.PI*0.48, orbit.phi-dy*0.007));
+  } else if (orbit.button===2) {
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);
+    const up    = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);
+    const speed = orbit.r/canvas.clientWidth*1.6;
+    orbit.target.addScaledVector(right, -dx*speed);
+    orbit.target.addScaledVector(up,     dy*speed);
+  }
+  applyOrbit();
+});
+window.addEventListener('mouseup', ()=>{ orbit.dragging=false; });
+canvas.addEventListener('wheel', e => {
+  orbit.r = Math.max(100, orbit.r*(1+e.deltaY*0.001));
+  applyOrbit(); e.preventDefault();
+},{passive:false});
+
+canvas.addEventListener('touchstart', e=>{
+  if(e.touches.length===1){orbit.dragging=true;orbit.button=0;orbit.last={x:e.touches[0].clientX,y:e.touches[0].clientY};}
+});
+canvas.addEventListener('touchmove', e=>{
+  if(!orbit.dragging||e.touches.length!==1) return;
+  const dx=e.touches[0].clientX-orbit.last.x, dy=e.touches[0].clientY-orbit.last.y;
+  orbit.last={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  orbit.theta-=dx*0.007;
+  orbit.phi=Math.max(0.05,Math.min(Math.PI*0.48,orbit.phi-dy*0.007));
+  applyOrbit(); e.preventDefault();
+},{passive:false});
+canvas.addEventListener('touchend',()=>{orbit.dragging=false;});
+
+// ── View presets ───────────────────────────────────────────
+function resetCamera() {
+  orbit.theta=Math.PI*0.25; orbit.phi=Math.PI/3.5;
+  fitCamera();
+  document.getElementById('view-label').textContent='Isometric View';
+}
+function setView(v) {
+  const L={front:'Front View',top:'Top View',iso:'Isometric View'};
+  document.getElementById('view-label').textContent=L[v]||'';
+  if (v==='front')    {orbit.theta=0;            orbit.phi=Math.PI/2.02;}
+  else if (v==='top') {orbit.theta=Math.PI*0.25; orbit.phi=0.06;}
+  else                {orbit.theta=Math.PI*0.25; orbit.phi=Math.PI/3.5;}
+  fitCamera();
+}
+function togglePanels() {
+  showPanels=!showPanels;
+  document.getElementById('btn-panels').classList.toggle('active',!showPanels);
+  rebuildScene();
+}
+function toggleWireframe() {
+  wireframe=!wireframe;
+  document.getElementById('btn-wire').classList.toggle('active',wireframe);
+  frameGroup.traverse(o=>{ if(o.isMesh) o.material.wireframe=wireframe; });
+}
+
+// ── Resize ─────────────────────────────────────────────────
+function onResize() {
+  const vp=document.querySelector('.viewport');
+  renderer.setSize(vp.clientWidth, vp.clientHeight);
+  camera.aspect=vp.clientWidth/vp.clientHeight;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+
+// ── Render loop ────────────────────────────────────────────
+(function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);})();
+
+// ── Init ───────────────────────────────────────────────────
+onResize();
+updateStatus();
+recalc();
+
+// Try to load STEP files (works when served from http:// — run: python -m http.server 8080)
+tryLoadSTEP();
+</script>
+</body>
+</html>
