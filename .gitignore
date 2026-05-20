@@ -1,0 +1,12 @@
+node_modules/
+*.obj
+*.mtl
+*.step
+convert_one.mjs
+convert_step_to_glb.mjs
+inspect*.mjs
+optimize_printers.mjs
+package.json
+package-lock.json
+.vscode/
+table_texture.jpg

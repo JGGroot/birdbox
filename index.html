@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -15,7 +15,7 @@
   --sunken: -1px -1px 0 var(--white) inset, 1px 1px 0 var(--gray3) inset;
   --font: Tahoma,'MS Sans Serif',Arial,sans-serif;
   --mono: 'Lucida Console','Courier New',monospace;
-  --vp:#0D0F14;
+  --vp:#EEE9DE;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--gray0);color:var(--black);font-family:var(--font);font-size:11px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
@@ -120,7 +120,7 @@ tr.bom-row.selected td.td-dim{color:#cce}
 }
 .view-btn:active{border-color:rgba(80,80,80,.8) rgba(255,255,255,.9) rgba(255,255,255,.9) rgba(80,80,80,.8)}
 .view-btn.active{background:rgba(180,176,160,.9)}
-.view-info{position:absolute;bottom:8px;left:8px;font-size:10px;color:rgba(200,210,220,.6);line-height:1.7;pointer-events:none;font-family:var(--font)}
+.view-info{position:absolute;bottom:8px;left:8px;font-size:10px;color:rgba(80,60,40,.45);line-height:1.7;pointer-events:none;font-family:var(--font)}
 
 /* ── Highlight hint ── */
 .bom-hint{font-size:10px;color:#666;padding:3px 6px;background:var(--gray0);border-top:1px solid var(--gray2);font-style:italic}
@@ -275,6 +275,10 @@ tr.bom-row.selected td.td-dim{color:#cce}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
 <script>
 // ── Constants ──────────────────────────────────────────────
 const INSET   = 3;
@@ -491,15 +495,14 @@ function exportCSV() {
   a.click();
 }
 
-// ── STEP export ────────────────────────────────────────────
+// ── STEP export (AP214 — proper B-rep + colors) ────────────
 function exportSTEP() {
   const btn = document.getElementById('btn-export-step');
   if (btn) { btn.textContent = 'Exporting…'; btn.disabled = true; }
 
-  // ── Mini STEP writer ──────────────────────────────────────
-  const lines = [];
-  let _id = 0;
-  const add = s => { lines.push(`#${++_id} = ${s};`); return _id; };
+  // ── STEP writer primitives ────────────────────────────────
+  const lines2 = []; let _id = 0;
+  const add = s => { lines2.push(`#${++_id} = ${s};`); return _id; };
   const f   = v => v.toFixed(6);
   const pt  = (x,y,z) => add(`CARTESIAN_POINT('',(${f(x)},${f(y)},${f(z)}))`);
   const dir = (x,y,z) => add(`DIRECTION('',(${f(x)},${f(y)},${f(z)}))`);
@@ -507,117 +510,465 @@ function exportSTEP() {
   const ax2 = (o,z,x) => add(`AXIS2_PLACEMENT_3D('',#${o},#${z},#${x})`);
   const vpt = p       => add(`VERTEX_POINT('',#${p})`);
   const lne = (o,v)   => add(`LINE('',#${o},#${v})`);
-  const ec  = (a,b,c) => add(`EDGE_CURVE('',#${a},#${b},#${c},.T.)`);
+  const ec  = (a,b,c,s=true) => add(`EDGE_CURVE('',#${a},#${b},#${c},${s?'.T.':'.F.'})`);
   const oe  = (e,s)   => add(`ORIENTED_EDGE('',*,*,#${e},${s?'.T.':'.F.'})`);
   const el  = es      => add(`EDGE_LOOP('',(${es.map(e=>'#'+e).join(',')}))`);
   const fb  = (l,s)   => add(`FACE_BOUND('',#${l},${s?'.T.':'.F.'})`);
+  const fob = (l,s)   => add(`FACE_OUTER_BOUND('',#${l},${s?'.T.':'.F.'})`);
   const af  = (bs,su) => add(`ADVANCED_FACE('',(${bs.map(b=>'#'+b).join(',')}),#${su},.T.)`);
   const cs  = fs      => add(`CLOSED_SHELL('',(${fs.map(f=>'#'+f).join(',')}))`);
-  const msb = sh      => add(`MANIFOLD_SOLID_BREP('Body',#${sh})`);
+  const msb = sh      => add(`MANIFOLD_SOLID_BREP('',#${sh})`);
 
-  // Write one planar quad face. pts: array of 4 [x,y,z] world coords (CCW outward).
-  function writeFace(pts) {
-    // Normal from cross product of first two edges
-    const u = pts[1].map((v,i)=>v-pts[0][i]);
-    const v = pts[3].map((v,i)=>v-pts[0][i]);
-    const nx = u[1]*v[2]-u[2]*v[1], ny = u[2]*v[0]-u[0]*v[2], nz = u[0]*v[1]-u[1]*v[0];
-    const nl = Math.sqrt(nx*nx+ny*ny+nz*nz)||1;
-    // Edge direction (first edge)
-    const el0 = Math.sqrt(u[0]*u[0]+u[1]*u[1]+u[2]*u[2])||1;
-    const orig  = pt(...pts[0]);
-    const zd    = dir(nx/nl, ny/nl, nz/nl);
-    const xd    = dir(u[0]/el0, u[1]/el0, u[2]/el0);
-    const plAx  = ax2(orig, zd, xd);
-    const surf  = add(`PLANE('',#${plAx})`);
-    const cpts  = pts.map(p => pt(...p));
-    const vpts  = cpts.map(p => vpt(p));
-    const oes   = pts.map((_,i) => {
-      const j  = (i+1)%4;
-      const dx = pts[j][0]-pts[i][0], dy = pts[j][1]-pts[i][1], dz = pts[j][2]-pts[i][2];
-      const l  = Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
-      const ld = dir(dx/l, dy/l, dz/l);
-      const lv = vec(ld, l);
-      const lg = lne(cpts[i], lv);
-      const e  = ec(vpts[i], vpts[j], lg);
-      return oe(e, true);
-    });
-    const loop  = el(oes);
-    const bound = fb(loop, true);
-    return af([bound], surf);
+  // Y-up → Z-up for STEP
+  const _tmp = new THREE.Vector3();
+  const toS = v => [v.x, -v.z, v.y];
+  const wPt = (x,y,z,mat) => { _tmp.set(x,y,z).applyMatrix4(mat); return toS(_tmp); };
+  const wDir = (x,y,z,mat) => { _tmp.set(x,y,z).transformDirection(mat); return toS(_tmp); };
+
+  // ── AP214 color style ─────────────────────────────────────
+  function makeStyle(r, g, b) {
+    const rgb  = add(`COLOUR_RGB('',${r.toFixed(4)},${g.toFixed(4)},${b.toFixed(4)})`);
+    const fasc = add(`FILL_AREA_STYLE_COLOUR('',#${rgb})`);
+    const fas  = add(`FILL_AREA_STYLE('',(#${fasc}))`);
+    const ssfa = add(`SURFACE_STYLE_FILL_AREA(#${fas})`);
+    const ssu  = add(`SURFACE_STYLE_USAGE(.BOTH.,#${ssfa})`);
+    return add(`PRESENTATION_STYLE_ASSIGNMENT((#${ssu}))`);
   }
 
-  // Write a solid box from 8 world-space corners (standard box winding).
-  // c[0-3] = bottom face CCW, c[4-7] = top face CCW (same XY order, higher Z).
-  function writeBrep(c) {
-    const faces = [
-      writeFace([c[0],c[3],c[2],c[1]]), // bottom  (−Z normal)
-      writeFace([c[4],c[5],c[6],c[7]]), // top     (+Z normal)
-      writeFace([c[0],c[1],c[5],c[4]]), // front   (−Y normal)
-      writeFace([c[2],c[3],c[7],c[6]]), // back    (+Y normal)
-      writeFace([c[1],c[2],c[6],c[5]]), // right   (+X normal)
-      writeFace([c[3],c[0],c[4],c[7]]), // left    (−X normal)
-    ];
+  // ── Profile-based B-rep extrusion ────────────────────────
+  // Outer profile: per-curve, with CIRCLE edges for arc fillets + CYLINDRICAL_SURFACE side walls.
+  // Bore holes: high-res polygon (64 pts) so bore topology stays simple.
+  function writeExtrusionBrep(shape, length, mat) {
+    const half = length / 2;
+
+    // LINE edge between two already-written VERTEX_POINT ids
+    function lineEdge(va, vb, pa, pb) {
+      const dx=pb[0]-pa[0], dy=pb[1]-pa[1], dz=pb[2]-pa[2];
+      const l=Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
+      return ec(va, vb, lne(pt(...pa), vec(dir(dx/l,dy/l,dz/l), l)));
+    }
+
+    // CIRCLE edge for an EllipseCurve at given z_local
+    function circleEdge(curve, z_local, va, vb) {
+      const { aX, aY, xRadius, aStartAngle, aClockwise } = curve;
+      const r = xRadius;
+      const [cx,cy,cz] = wPt(aX, aY, z_local, mat);
+      const n = wDir(0, 0, 1, mat);
+      const sp = wPt(aX + r*Math.cos(aStartAngle), aY + r*Math.sin(aStartAngle), z_local, mat);
+      const xd = [sp[0]-cx, sp[1]-cy, sp[2]-cz];
+      const xl = Math.sqrt(xd[0]**2+xd[1]**2+xd[2]**2)||1;
+      const circAx = ax2(pt(cx,cy,cz), dir(...n), dir(xd[0]/xl,xd[1]/xl,xd[2]/xl));
+      const circ = add(`CIRCLE('',#${circAx},${f(r)})`);
+      return ec(va, vb, circ, !aClockwise); // CCW → .T., CW → .F.
+    }
+
+    // ── Outer profile: process curve-by-curve ──
+    const oCurves = shape.curves;
+    const oN = oCurves.length;
+    const oPts = oCurves.map(c => { const p=c.getPoint(0); return [p.x,p.y]; });
+    const oVBot = oPts.map(([x,y]) => vpt(pt(...wPt(x,y,-half,mat))));
+    const oVTop = oPts.map(([x,y]) => vpt(pt(...wPt(x,y,+half,mat))));
+
+    function makeCurveEdge(curve, z_local, va, vb) {
+      return (curve.isEllipseCurve || curve instanceof THREE.EllipseCurve)
+        ? circleEdge(curve, z_local, va, vb)
+        : lineEdge(va, vb, wPt(curve.getPoint(0).x, curve.getPoint(0).y, z_local, mat),
+                           wPt(curve.getPoint(1).x, curve.getPoint(1).y, z_local, mat));
+    }
+
+    const oEBot  = oCurves.map((c,i) => makeCurveEdge(c, -half, oVBot[i], oVBot[(i+1)%oN]));
+    const oETop  = oCurves.map((c,i) => makeCurveEdge(c, +half, oVTop[i], oVTop[(i+1)%oN]));
+    const oELong = oPts.map(([x,y],i) => lineEdge(oVBot[i], oVTop[i],
+                                                    wPt(x,y,-half,mat), wPt(x,y,+half,mat)));
+
+    const faces = [];
+
+    // ── Bore holes: true CYLINDRICAL_SURFACE with CIRCLE arc edges ──
+    // Each hole is a single full-circle EllipseCurve. Split into 2 semicircular arcs.
+    // Topology: 4 vertices (br/bl/tr/tl), 2 arc edges at each end, 2 long lines, 2 cyl faces.
+    const holeData = (shape.holes||[]).map(h => {
+      const hCurves = h.curves;
+      if (hCurves && hCurves.length === 1 &&
+          (hCurves[0].isEllipseCurve || hCurves[0] instanceof THREE.EllipseCurve)) {
+        const { aX, aY, xRadius: r } = hCurves[0];
+
+        // 4 vertices at angle=0 (right) and angle=π (left), at both extrusion ends
+        const V_br = vpt(pt(...wPt(aX+r, aY, -half, mat)));
+        const V_bl = vpt(pt(...wPt(aX-r, aY, -half, mat)));
+        const V_tr = vpt(pt(...wPt(aX+r, aY, +half, mat)));
+        const V_tl = vpt(pt(...wPt(aX-r, aY, +half, mat)));
+
+        // Build a CW CIRCLE edge: from vertex va to vb, centered at (cx,cy,z_local)
+        // x-axis of CIRCLE placement points toward va (angle = aStartAngle)
+        function boreArc(va, vb, z_local, aStartAngle) {
+          const [cx,cy,cz] = wPt(aX, aY, z_local, mat);
+          const n = wDir(0,0,1,mat);
+          const sp = wPt(aX + r*Math.cos(aStartAngle), aY + r*Math.sin(aStartAngle), z_local, mat);
+          const xd = [sp[0]-cx, sp[1]-cy, sp[2]-cz];
+          const xl = Math.sqrt(xd[0]**2+xd[1]**2+xd[2]**2)||1;
+          const circAx = ax2(pt(cx,cy,cz), dir(...n), dir(xd[0]/xl,xd[1]/xl,xd[2]/xl));
+          return ec(va, vb, add(`CIRCLE('',#${circAx},${f(r)})`), false); // CW → .F.
+        }
+
+        // Arc1: right→left CW through bottom (aY-r).  Arc2: left→right CW through top (aY+r).
+        const Arc1_bot = boreArc(V_br, V_bl, -half, 0);
+        const Arc2_bot = boreArc(V_bl, V_br, -half, Math.PI);
+        const Arc1_top = boreArc(V_tr, V_tl, +half, 0);
+        const Arc2_top = boreArc(V_tl, V_tr, +half, Math.PI);
+
+        // Longitudinal lines
+        const LongR = lineEdge(V_br, V_tr, wPt(aX+r,aY,-half,mat), wPt(aX+r,aY,+half,mat));
+        const LongL = lineEdge(V_bl, V_tl, wPt(aX-r,aY,-half,mat), wPt(aX-r,aY,+half,mat));
+
+        // Cylindrical surface
+        const [cx2,cy2,cz2] = wPt(aX, aY, -half, mat);
+        const zd2 = wDir(0,0,1,mat);
+        const sp2 = wPt(aX+r, aY, -half, mat);
+        const xd2 = [sp2[0]-cx2, sp2[1]-cy2, sp2[2]-cz2];
+        const xl2 = Math.sqrt(xd2[0]**2+xd2[1]**2+xd2[2]**2)||1;
+        const cylAx = ax2(pt(cx2,cy2,cz2), dir(...zd2), dir(xd2[0]/xl2,xd2[1]/xl2,xd2[2]/xl2));
+        const cylSurf = add(`CYLINDRICAL_SURFACE('',#${cylAx},${f(r)})`);
+
+        // Face A (bottom-arc half, normal -Y local): V_tr→V_tl→V_bl→V_br
+        faces.push(af([fob(el([oe(Arc1_top,true),oe(LongL,false),oe(Arc1_bot,false),oe(LongR,true)]),true)], cylSurf));
+        // Face B (top-arc half, normal +Y local): V_tl→V_tr→V_br→V_bl
+        faces.push(af([fob(el([oe(Arc2_top,true),oe(LongR,false),oe(Arc2_bot,false),oe(LongL,true)]),true)], cylSurf));
+
+        return { type:'circle', V_br, V_bl, V_tr, V_tl, Arc1_bot, Arc2_bot, Arc1_top, Arc2_top };
+      }
+      // Fallback: polygon
+      let pts = h.getPoints(64).map(p=>[p.x,p.y]);
+      if (pts.length>1){ const a=pts[0],b=pts[pts.length-1];
+        if(Math.abs(a[0]-b[0])<1e-6&&Math.abs(a[1]-b[1])<1e-6) pts.pop(); }
+      const M=pts.length;
+      const bv=pts.map(([x,y])=>vpt(pt(...wPt(x,y,-half,mat))));
+      const tv=pts.map(([x,y])=>vpt(pt(...wPt(x,y,+half,mat))));
+      const be=pts.map(([x,y],i)=>{ const j=(i+1)%M;
+        return lineEdge(bv[i],bv[j],wPt(x,y,-half,mat),wPt(pts[j][0],pts[j][1],-half,mat)); });
+      const te=pts.map(([x,y],i)=>{ const j=(i+1)%M;
+        return lineEdge(tv[i],tv[j],wPt(x,y,+half,mat),wPt(pts[j][0],pts[j][1],+half,mat)); });
+      const le=pts.map(([x,y],i)=>lineEdge(bv[i],tv[i],wPt(x,y,-half,mat),wPt(x,y,+half,mat)));
+      return {type:'polygon',bv,tv,be,te,le,pts,M};
+    });
+
+    // ── Cap faces ──
+    function capFace(forward) {
+      const eO = forward ? oETop : oEBot;
+      const outerOEs = forward
+        ? eO.map(e=>oe(e,true))
+        : (()=>{ const r=[]; for(let k=oN-1;k>=0;k--) r.push(oe(eO[(k-1+oN)%oN],false)); return r; })();
+      const bounds = [fob(el(outerOEs), true)];
+      holeData.forEach(hole => {
+        let hLoop;
+        if (hole.type === 'circle') {
+          // Top cap (forward): CW boundary from +Z → [Arc1_top(.T), Arc2_top(.T)]
+          // Bot cap (!forward): CCW from +Z → [Arc1_bot(.F), Arc2_bot(.F)]
+          hLoop = forward
+            ? el([oe(hole.Arc1_top,true), oe(hole.Arc2_top,true)])
+            : el([oe(hole.Arc1_bot,false), oe(hole.Arc2_bot,false)]);
+        } else {
+          const { be, te, M } = hole;
+          const he = forward ? te : be;
+          const hOEs = forward
+            ? (()=>{ const r=[]; for(let k=M-1;k>=0;k--) r.push(oe(he[(k-1+M)%M],false)); return r; })()
+            : he.map(e=>oe(e,true));
+          hLoop = el(hOEs);
+        }
+        bounds.push(fb(hLoop, true));
+      });
+      const n=wDir(0,0,forward?1:-1,mat), x=wDir(1,0,0,mat), o=wPt(0,0,forward?+half:-half,mat);
+      faces.push(af(bounds, add(`PLANE('',#${ax2(pt(...o),dir(...n),dir(...x))})`)));
+    }
+    capFace(false); // bottom
+    capFace(true);  // top
+
+    // ── Outer side walls: PLANE for lines, CYLINDRICAL_SURFACE for arcs ──
+    for (let i=0; i<oN; i++) {
+      const j=(i+1)%oN;
+      const sideOEs = [oe(oEBot[i],true), oe(oELong[j],true), oe(oETop[i],false), oe(oELong[i],false)];
+      const curve = oCurves[i];
+      let surf;
+      if (curve.isEllipseCurve || curve instanceof THREE.EllipseCurve) {
+        const { aX, aY, xRadius, aStartAngle } = curve;
+        const [cx,cy,cz] = wPt(aX, aY, -half, mat);
+        const zd = wDir(0,0,1,mat);
+        const sp = wPt(aX+xRadius*Math.cos(aStartAngle), aY+xRadius*Math.sin(aStartAngle), -half, mat);
+        const xd = [sp[0]-cx,sp[1]-cy,sp[2]-cz];
+        const xl = Math.sqrt(xd[0]**2+xd[1]**2+xd[2]**2)||1;
+        surf = add(`CYLINDRICAL_SURFACE('',#${ax2(pt(cx,cy,cz),dir(...zd),dir(xd[0]/xl,xd[1]/xl,xd[2]/xl))},${f(xRadius)})`);
+      } else {
+        const p0=wPt(oPts[i][0],oPts[i][1],-half,mat);
+        const p1=wPt(oPts[j][0],oPts[j][1],-half,mat);
+        const p2=wPt(oPts[i][0],oPts[i][1],+half,mat);
+        const ux=p1[0]-p0[0],uy=p1[1]-p0[1],uz=p1[2]-p0[2];
+        const hx=p2[0]-p0[0],hy=p2[1]-p0[1],hz=p2[2]-p0[2];
+        const nx=uy*hz-uz*hy,ny=uz*hx-ux*hz,nz=ux*hy-uy*hx;
+        const nl=Math.sqrt(nx*nx+ny*ny+nz*nz);
+        if (nl<1e-8) continue;
+        const ul=Math.sqrt(ux*ux+uy*uy+uz*uz)||1;
+        surf = add(`PLANE('',#${ax2(pt(...p0),dir(nx/nl,ny/nl,nz/nl),dir(ux/ul,uy/ul,uz/ul))})`);
+      }
+      faces.push(af([fb(el(sideOEs),true)], surf));
+    }
+
+    // ── Bore side walls: polygon planes (circle-type holes already added cyl faces above) ──
+    holeData.forEach(hole=>{
+      if (hole.type === 'circle') return; // cylindrical faces already written
+      const {pts,be,te,le,M} = hole;
+      for(let i=0;i<M;i++){
+        const j=(i+1)%M;
+        const p0=wPt(pts[i][0],pts[i][1],-half,mat);
+        const p1=wPt(pts[j][0],pts[j][1],-half,mat);
+        const p2=wPt(pts[i][0],pts[i][1],+half,mat);
+        const ux=p1[0]-p0[0],uy=p1[1]-p0[1],uz=p1[2]-p0[2];
+        const hx=p2[0]-p0[0],hy=p2[1]-p0[1],hz=p2[2]-p0[2];
+        const nx=uy*hz-uz*hy,ny=uz*hx-ux*hz,nz=ux*hy-uy*hx;
+        const nl=Math.sqrt(nx*nx+ny*ny+nz*nz); if(nl<1e-8) continue;
+        const ul=Math.sqrt(ux*ux+uy*uy+uz*uz)||1;
+        const sideOEs=[oe(be[i],true),oe(le[j],true),oe(te[i],false),oe(le[i],false)];
+        faces.push(af([fb(el(sideOEs),true)],
+          add(`PLANE('',#${ax2(pt(...p0),dir(nx/nl,ny/nl,nz/nl),dir(ux/ul,uy/ul,uz/ul))})`)));
+      }
+    });
+
     return msb(cs(faces));
   }
 
-  // Transform local box corners via a Three.js Matrix4
-  function boxCorners(W, H, L, mat) {
-    const hw=W/2, hh=H/2, hl=L/2;
-    const local = [
-      [-hw,-hh,-hl], [hw,-hh,-hl], [hw,hh,-hl], [-hw,hh,-hl],
-      [-hw,-hh, hl], [hw,-hh, hl], [hw,hh, hl], [-hw,hh, hl],
-    ];
-    return local.map(([x,y,z]) => {
-      const v = new THREE.Vector3(x,y,z).applyMatrix4(mat);
-      return [v.x, v.y, v.z];
-    });
+  // ── Panel B-rep (6 PLANE quad faces) ─────────────────────
+  function writePanelBrep(W, H, T, mat) {
+    const hw=W/2, hh=H/2, ht=T/2;
+    // 8 corners in local space → world STEP
+    const c = [
+      [-hw,-hh,-ht],[hw,-hh,-ht],[hw,hh,-ht],[-hw,hh,-ht],
+      [-hw,-hh, ht],[hw,-hh, ht],[hw,hh, ht],[-hw,hh, ht],
+    ].map(([x,y,z]) => wPt(x,y,z,mat));
+    function quadFace(p0,p1,p2,p3) {
+      const cps=[p0,p1,p2,p3].map(p=>pt(...p));
+      const vps=cps.map(p=>vpt(p));
+      const ux=p1[0]-p0[0],uy=p1[1]-p0[1],uz=p1[2]-p0[2];
+      const vx=p3[0]-p0[0],vy=p3[1]-p0[1],vz=p3[2]-p0[2];
+      const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+      const nl=Math.sqrt(nx*nx+ny*ny+nz*nz)||1;
+      const ul=Math.sqrt(ux*ux+uy*uy+uz*uz)||1;
+      const oes=[0,1,2,3].map(i=>{
+        const j=(i+1)%4;
+        const pts4=[p0,p1,p2,p3];
+        const dx=pts4[j][0]-pts4[i][0],dy=pts4[j][1]-pts4[i][1],dz=pts4[j][2]-pts4[i][2];
+        const l=Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
+        const ld=dir(dx/l,dy/l,dz/l);
+        return oe(ec(vps[i],vps[j],lne(cps[i],vec(ld,l))),true);
+      });
+      const surf=add(`PLANE('',#${ax2(pt(...p0),dir(nx/nl,ny/nl,nz/nl),dir(ux/ul,uy/ul,uz/ul))})`);
+      return af([fob(el(oes),true)],surf);
+    }
+    const [c0,c1,c2,c3,c4,c5,c6,c7]=c;
+    return msb(cs([
+      quadFace(c0,c3,c2,c1), quadFace(c4,c5,c6,c7),
+      quadFace(c0,c1,c5,c4), quadFace(c2,c3,c7,c6),
+      quadFace(c1,c2,c6,c5), quadFace(c3,c0,c4,c7),
+    ]));
   }
 
-  // Collect scene meshes with stepType
-  const solids = [];
+  // ── Re-embed raw STEP solids with coordinate transform ───
+  // Parses a STEP file's DATA section, extracts all MANIFOLD_SOLID_BREPs and
+  // their dependencies, transforms CARTESIAN_POINTs and DIRECTIONs into
+  // world space, and appends them to lines2. Returns array of new solid IDs.
+  function writeRawSTEPSolids(rawText, worldMat, flip) {
+    const dataMatch = rawText.match(/DATA;([\s\S]*?)ENDSEC/);
+    if (!dataMatch) return [];
+
+    // Parse all entities, handling multi-line continuations
+    const entities = {};
+    let acc = '';
+    for (const line of dataMatch[1].split('\n')) {
+      const t = line.trim();
+      if (!t || t.startsWith('/*') || t.startsWith('--')) continue;
+      acc += (acc ? ' ' : '') + t;
+      if (acc.endsWith(';')) {
+        const m = acc.match(/^#(\d+)\s*=\s*(.+);$/);
+        if (m) entities[parseInt(m[1])] = m[2].trim();
+        acc = '';
+      }
+    }
+
+    // Collect all MANIFOLD_SOLID_BREP ids
+    const solidOrigIds = Object.entries(entities)
+      .filter(([,b]) => b.startsWith('MANIFOLD_SOLID_BREP'))
+      .map(([id]) => parseInt(id));
+    if (!solidOrigIds.length) return [];
+
+    // BFS to collect all dependencies
+    const needed = new Set();
+    const queue = [...solidOrigIds];
+    while (queue.length) {
+      const id = queue.shift();
+      if (needed.has(id) || !entities[id]) continue;
+      needed.add(id);
+      for (const m of entities[id].matchAll(/#(\d+)/g)) queue.push(parseInt(m[1]));
+    }
+
+    const offset = _id;
+    const _tv2 = new THREE.Vector3();
+    const tPt  = (x,y,z) => { _tv2.set(x,y,z).applyMatrix4(worldMat); return [_tv2.x,-_tv2.z,_tv2.y]; };
+    const tDir = (x,y,z) => { _tv2.set(x,y,z).transformDirection(worldMat); return [_tv2.x,-_tv2.z,_tv2.y]; };
+    const renum = s => s.replace(/#(\d+)/g, (_,n) => `#${parseInt(n)+offset}`);
+
+    let maxOrig = 0;
+    for (const origId of [...needed].sort((a,b)=>a-b)) {
+      if (origId > maxOrig) maxOrig = origId;
+      const newId = origId + offset;
+      let body = entities[origId];
+
+      if (body.startsWith('CARTESIAN_POINT')) {
+        const m = body.match(/\(\s*'[^']*'\s*,\s*\(\s*([\d\s.,eE+\-]+)\s*\)\s*\)/);
+        if (m) {
+          const [x,y,z] = m[1].split(',').map(Number);
+          const [nx,ny,nz] = tPt(x,y,z);
+          lines2.push(`#${newId} = CARTESIAN_POINT('',(${f(nx)},${f(ny)},${f(nz)}));`);
+          continue;
+        }
+      }
+      if (body.startsWith('DIRECTION')) {
+        const m = body.match(/\(\s*'[^']*'\s*,\s*\(\s*([\d\s.,eE+\-]+)\s*\)\s*\)/);
+        if (m) {
+          let [x,y,z] = m[1].split(',').map(Number);
+          let [nx,ny,nz] = tDir(x,y,z);
+          if (flip) { nx=-nx; ny=-ny; nz=-nz; }
+          lines2.push(`#${newId} = DIRECTION('',(${f(nx)},${f(ny)},${f(nz)}));`);
+          continue;
+        }
+      }
+      // Flip ADVANCED_FACE same_sense for mirrored instances
+      if (flip && body.startsWith('ADVANCED_FACE')) {
+        body = body.replace(/,\s*\.T\.\s*\)\s*$/, ',.F.)').replace(/,\s*\.F\.\s*\)\s*$/, ',.T.)');
+      }
+      // Skip product-structure entities (not needed in multi-body export)
+      if (/^(PRODUCT|APPLICATION|SHAPE_DEFINITION|PRODUCT_DEFINITION|NEXT_ASSEMBLY|MECHANICAL_DESIGN)/.test(body)) continue;
+      lines2.push(`#${newId} = ${renum(body)};`);
+    }
+    _id = offset + maxOrig;
+    return solidOrigIds.map(id => id + offset);
+  }
+
+  // ── Triangulated mesh fallback (hinges) ──────────────────
+  function writeMeshBrep(mesh) {
+    const geo=mesh.geometry; if (!geo||!geo.attributes.position) return null;
+    mesh.updateMatrixWorld(true);
+    const mat2=mesh.matrixWorld, flip=mat2.determinant()<0;
+    const pos=geo.attributes.position, idx=geo.index, cnt=idx?idx.count:pos.count;
+    const faces=[];
+    const tmp2=new THREE.Vector3();
+    const tw=(i)=>{ tmp2.set(pos.getX(i),pos.getY(i),pos.getZ(i)).applyMatrix4(mat2); return toS(tmp2); };
+    function tri(pa,pb,pc){
+      const ux=pb[0]-pa[0],uy=pb[1]-pa[1],uz=pb[2]-pa[2];
+      const vx=pc[0]-pa[0],vy=pc[1]-pa[1],vz=pc[2]-pa[2];
+      const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
+      const nl=Math.sqrt(nx*nx+ny*ny+nz*nz); if(nl<1e-8) return null;
+      const ul=Math.sqrt(ux*ux+uy*uy+uz*uz)||1;
+      const orig=pt(...pa);
+      const surf=add(`PLANE('',#${ax2(orig,dir(nx/nl,ny/nl,nz/nl),dir(ux/ul,uy/ul,uz/ul))})`);
+      const cps=[pa,pb,pc].map(p=>pt(...p)), vps=cps.map(p=>vpt(p));
+      const oes=[0,1,2].map(i=>{
+        const j=(i+1)%3;const pts3=[pa,pb,pc];
+        const dx=pts3[j][0]-pts3[i][0],dy=pts3[j][1]-pts3[i][1],dz=pts3[j][2]-pts3[i][2];
+        const l=Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
+        return oe(ec(vps[i],vps[j],lne(cps[i],vec(dir(dx/l,dy/l,dz/l),l))),true);
+      });
+      return af([fb(el(oes),true)],surf);
+    }
+    for(let i=0;i<cnt;i+=3){
+      const ia=idx?idx.getX(i):i, ib=idx?idx.getX(i+1):i+1, ic=idx?idx.getX(i+2):i+2;
+      const pa=tw(ia), pb=tw(ib), pc=tw(ic);
+      const fid=flip?tri(pa,pc,pb):tri(pa,pb,pc);
+      if(fid!==null) faces.push(fid);
+    }
+    if(!faces.length) return null;
+    return msb(cs(faces));
+  }
+
+  // ── Collect solids ────────────────────────────────────────
+  const silverStyle = makeStyle(0.722, 0.784, 0.831); // aluminum
+  const panelStyle  = makeStyle(0.78,  0.93,  1.0);   // pale blue acrylic
+  const blackStyle  = makeStyle(0.12,  0.12,  0.12);  // brackets / hinges
+
+  const solids = [], styleItems = [];
   frameGroup.updateMatrixWorld(true);
   frameGroup.traverse(obj => {
     if (!(obj instanceof THREE.Mesh)) return;
     const ud = obj.userData;
-    if (!ud.stepType) return;
     obj.updateMatrixWorld(true);
-    const c = boxCorners(ud.secW, ud.secH, ud.length, obj.matrixWorld);
-    solids.push(writeBrep(c));
+
+    if (ud.stepType === 'extrusion') {
+      const shape = ud.shapeKey === '2040' ? _shape2040 : _shape2020;
+      const sid = writeExtrusionBrep(shape, ud.length, obj.matrixWorld);
+      if (sid !== null) { solids.push(sid); styleItems.push(add(`STYLED_ITEM('',(#${silverStyle}),#${sid})`)); }
+
+    } else if (ud.stepType === 'panel') {
+      const sid = writePanelBrep(ud.secW, ud.secH, 4, obj.matrixWorld);
+      if (sid !== null) { solids.push(sid); styleItems.push(add(`STYLED_ITEM('',(#${panelStyle}),#${sid})`)); }
+
+    } else if (ud.stepType === 'bracket') {
+      const raw = stepGeos.bracketRaw;
+      if (raw) {
+        const flip = obj.matrixWorld.determinant() < 0;
+        // Compose out the centering offset so raw STEP origin maps correctly
+        let xformMat = obj.matrixWorld;
+        if (stepGeos.bracketCenter) {
+          const c = stepGeos.bracketCenter;
+          xformMat = new THREE.Matrix4().copy(obj.matrixWorld)
+            .multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z));
+        }
+        writeRawSTEPSolids(raw, xformMat, flip).forEach(sid => {
+          solids.push(sid); styleItems.push(add(`STYLED_ITEM('',(#${blackStyle}),#${sid})`));
+        });
+      }
+
+    } else if (ud.stepType === 'hinge') {
+      // Hinge has per-component centering — use triangulated mesh (accurate positioning)
+      const sid = writeMeshBrep(obj);
+      if (sid !== null) { solids.push(sid); styleItems.push(add(`STYLED_ITEM('',(#${blackStyle}),#${sid})`)); }
+    }
   });
 
-  // ── Build AP203 file ────────────────────────────────────────
-  const appCtx  = add(`APPLICATION_CONTEXT('configuration controlled 3D design of mechanical parts and assemblies')`);
-  add(`APPLICATION_PROTOCOL_DEFINITION('international standard','configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2001,#${appCtx})`);
+  // ── AP203/214 product + geometry context ──────────────────
+  const appCtx  = add(`APPLICATION_CONTEXT('automotive design')`);
+  add(`APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2010,#${appCtx})`);
   const prodCtx = add(`PRODUCT_CONTEXT('',#${appCtx},'mechanical')`);
   const prod    = add(`PRODUCT('BirdBox','BirdBox','',(#${prodCtx}))`);
   const pdCtx   = add(`PRODUCT_DEFINITION_CONTEXT('part definition',#${appCtx},'design')`);
   const pd      = add(`PRODUCT_DEFINITION('design','',#${pdCtx},#${prod})`);
   const pds     = add(`PRODUCT_DEFINITION_SHAPE('definitionshape','',#${pd})`);
-  const gcCtx   = add(`(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#${add(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.001),#${add(`(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))`)},'','')`)})GLOBAL_UNIT_ASSIGNED_CONTEXT((#${add(`(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))`)},#${add(`(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))`)},#${add(`(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT())`)}))REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and UNCERTAINTY'))`);
-  const srep    = add(`SHAPE_REPRESENTATION('BirdBox',(${solids.map(s=>'#'+s).join(',')}),#${gcCtx})`);
+  const mmUnit  = add(`(NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) LENGTH_UNIT())`);
+  const radUnit = add(`(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))`);
+  const srUnit  = add(`(NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT())`);
+  const uncert  = add(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.001),#${mmUnit},'distance_accuracy_value','confusion accuracy')`);
+  const gcCtx   = add(`(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#${uncert})) GLOBAL_UNIT_ASSIGNED_CONTEXT((#${mmUnit},#${radUnit},#${srUnit})) REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and UNCERTAINTY'))`);
+  // Include styled items inside the shape rep so more CAD tools find them
+  const allRepItems = [...solids, ...styleItems];
+  const srep    = add(`ADVANCED_BREP_SHAPE_REPRESENTATION('BirdBox',(${allRepItems.map(s=>'#'+s).join(',')}),#${gcCtx})`);
   add(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${srep})`);
+  if (styleItems.length) {
+    const mrep = add(`MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',(${styleItems.map(s=>'#'+s).join(',')}),#${gcCtx})`);
+    // Link the two representations so tools that look for MDGPR can find it
+    add(`REPRESENTATION_RELATIONSHIP('style','',#${mrep},#${srep})`);
+  }
 
-  // ── Assemble file ───────────────────────────────────────────
+  // ── Assemble file ─────────────────────────────────────────
   const now = new Date().toISOString().replace('T',' ').slice(0,19);
   const header = [
-    'ISO-10303-21;',
-    'HEADER;',
+    'ISO-10303-21;','HEADER;',
     `FILE_DESCRIPTION(('BirdBox Open Source Printer Enclosure'),'2;1');`,
     `FILE_NAME('birdbox.stp','${now}',('BirdBox Configurator'),(''),'','','');`,
-    `FILE_SCHEMA(('CONFIG_CONTROL_DESIGN'));`,
-    'ENDSEC;',
-    'DATA;',
+    `FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));`,
+    'ENDSEC;','DATA;',
   ].join('\n');
-  const footer = 'ENDSEC;\nEND-ISO-10303-21;';
-  const content = header + '\n' + lines.join('\n') + '\n' + footer;
+  const content = header + '\n' + lines2.join('\n') + '\nENDSEC;\nEND-ISO-10303-21;';
 
-  // ── Download ────────────────────────────────────────────────
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob([content], {type:'model/step'})),
     download: `birdbox_${state.W}x${state.D}x${state.H}.stp`,
   });
   a.click();
-
   if (btn) { btn.textContent = 'Export STEP'; btn.disabled = false; }
 }
 
@@ -708,7 +1059,7 @@ function centerAndAnalyze(geo) {
   const sz = bb.max.z - bb.min.z;
   const sizes = [{v:sx,a:'x'},{v:sy,a:'y'},{v:sz,a:'z'}];
   sizes.sort((a,b) => b.v - a.v);
-  return { geo, bb: geo.boundingBox, axisLen: sizes[0].v, axis: sizes[0].a };
+  return { geo, bb: geo.boundingBox, axisLen: sizes[0].v, axis: sizes[0].a, center: new THREE.Vector3(cx,cy,cz) };
 }
 
 async function tryLoadSTEP() {
@@ -733,6 +1084,9 @@ async function tryLoadSTEP() {
         const resp = await fetch(fname);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const buf  = await resp.arrayBuffer();
+        // Store raw text for STEP re-embed during export (brackets only)
+        const rawText = new TextDecoder().decode(buf);
+        if (key === 'bracket') stepGeos.bracketRaw = rawText;
         const res  = oc.ReadStepFile(new Uint8Array(buf), null);
         const mCount = typeof res.meshes?.size === 'function' ? res.meshes.size() : res.meshes?.length;
         if (!res.success || !mCount) throw new Error(`parse failed (success=${res.success}, meshCount=${mCount})`);
@@ -755,8 +1109,9 @@ async function tryLoadSTEP() {
         } else {
           const info = centerAndAnalyze(mergeSTEPMeshes(res.meshes));
           const {bb} = info;
-          console.log(`[STEP] ${key} bb: x[${bb.min.x.toFixed(1)},${bb.max.x.toFixed(1)}] y[${bb.min.y.toFixed(1)},${bb.max.y.toFixed(1)}] z[${bb.min.z.toFixed(1)},${bb.max.z.toFixed(1)}] axisLen=${info.axisLen.toFixed(1)} axis=${info.axis}`);
+          console.log(`[STEP] ${key} bb: x[${bb.min.x.toFixed(1)},${bb.max.x.toFixed(1)}] y[${bb.min.y.toFixed(1)},${bb.max.y.toFixed(1)}] z[${bb.min.z.toFixed(1)},${bb.max.z.toFixed(1)}] axisLen=${info.axisLen.toFixed(1)} axis=${info.axis} center=${info.center.toArray().map(v=>v.toFixed(2))}`);
           stepGeos[key] = info;
+          if (key === 'bracket') stepGeos.bracketCenter = info.center;
         }
         loaded++;
         el.textContent = `STEP: ${loaded}/3`;
@@ -773,6 +1128,7 @@ async function tryLoadSTEP() {
       el.textContent = 'STEP: need server';
       el.style.color = '#888';
     }
+
   } catch (e) {
     el.textContent = 'STEP: procedural';
     el.style.color = '#888';
@@ -787,26 +1143,30 @@ const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.setClearColor(0x0D0F14, 1);
+renderer.setClearColor(0xEEE9DE, 1);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.toneMappingExposure = 1.1;
 
 const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0xEEE9DE);
+scene.fog = new THREE.Fog(0xEEE9DE, 18000, 40000);
 const camera = new THREE.PerspectiveCamera(45, 1, 1, 100000);
 
-scene.add(new THREE.AmbientLight(0x8ab4cc, 0.5));
-const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+scene.add(new THREE.AmbientLight(0xFFF8F0, 0.7));
+const sun = new THREE.DirectionalLight(0xFFF5E8, 1.4);
 sun.position.set(3000,4000,2000); sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
 sun.shadow.camera.near=10; sun.shadow.camera.far=30000;
 sun.shadow.camera.left=sun.shadow.camera.bottom=-4000;
 sun.shadow.camera.right=sun.shadow.camera.top=4000;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0x4488cc, 0.35);
-fill.position.set(-2000,500,-1500); scene.add(fill);
+const fill = new THREE.DirectionalLight(0xE8F4FF, 0.4);
+fill.position.set(-2000,1000,-1500); scene.add(fill);
+const bounce = new THREE.DirectionalLight(0xFFF0D8, 0.2);
+bounce.position.set(0,-1000,0); scene.add(bounce);
 
-const grid = new THREE.GridHelper(12000,60,0x1a2230,0x111820);
-grid.position.y = -2; scene.add(grid);
+const grid = new THREE.GridHelper(12000,60,0xC8BCA8,0xD8D0C0);
+grid.position.y = -748; scene.add(grid);
 
 // ── Materials ──────────────────────────────────────────────
 const matEx = new THREE.MeshPhysicalMaterial({
@@ -817,7 +1177,18 @@ const matPanel = new THREE.MeshPhysicalMaterial({
   color:0x99ddff, transparent:true, opacity:0.18,
   roughness:0.05, metalness:0.0, side:THREE.DoubleSide
 });
-const matDesk = new THREE.MeshPhysicalMaterial({color:0x1c1c1c, metalness:0, roughness:0.85});
+const matDesk = new THREE.MeshPhysicalMaterial({color: 0xd4aa72, metalness: 0, roughness: 0.78, side: THREE.DoubleSide});
+const matLeg  = new THREE.MeshPhysicalMaterial({color: 0xb8926a, metalness: 0, roughness: 0.82, side: THREE.DoubleSide});
+// Load table texture — applied once image loads, triggers material update
+new THREE.TextureLoader().load('table_texture.jpg', tex => {
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 2);
+  matDesk.map = tex;
+  matDesk.needsUpdate = true;
+  matLeg.map = tex;
+  matLeg.map.repeat.set(1, 2);
+  matLeg.needsUpdate = true;
+});
 
 // ── OpenBuilds V-slot profiles (DXF-derived coordinates) ────
 // Profile: 20×20mm with V-grooves on all 4 faces, 0.5mm corner fillets,
@@ -1192,7 +1563,7 @@ function placeRail2040(group, length, axis, px, py, pz, bomKey) {
   mesh.position.set(px, py, pz);
   mesh.userData.stepType = 'extrusion';
   mesh.userData.secW = EX_NARR; mesh.userData.secH = EX_WIDE;
-  mesh.userData.length = length;
+  mesh.userData.length = length; mesh.userData.shapeKey = '2040';
   group.add(mesh);
   if (bomKey) registerMesh(mesh, bomKey);
   return mesh;
@@ -1206,7 +1577,7 @@ function placeRail2020h(group, length, px, py, pz, bomKey) {
   mesh.position.set(px, py, pz);
   mesh.userData.stepType = 'extrusion';
   mesh.userData.secW = EX_NARR; mesh.userData.secH = EX_NARR;
-  mesh.userData.length = length;
+  mesh.userData.length = length; mesh.userData.shapeKey = '2020';
   group.add(mesh);
   if (bomKey) registerMesh(mesh, bomKey);
   return mesh;
@@ -1220,17 +1591,18 @@ function placePost2020(group, length, px, py, pz, bomKey) {
   mesh.position.set(px, py, pz);
   mesh.userData.stepType = 'extrusion';
   mesh.userData.secW = EX_NARR; mesh.userData.secH = EX_NARR;
-  mesh.userData.length = length;
+  mesh.userData.length = length; mesh.userData.shapeKey = '2020';
   group.add(mesh);
   if (bomKey) registerMesh(mesh, bomKey);
   return mesh;
 }
 
 // ── Panel builder ──────────────────────────────────────────
+const PANEL_T = 3; // acrylic thickness mm
 function makePanel(w, h) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,4), matPanel.clone());
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,PANEL_T), matPanel.clone());
   mesh.userData.stepType = 'panel';
-  mesh.userData.secW = w; mesh.userData.secH = h; mesh.userData.length = 4;
+  mesh.userData.secW = w; mesh.userData.secH = h; mesh.userData.length = PANEL_T;
   return mesh;
 }
 
@@ -1265,6 +1637,7 @@ function placeAngleBracket(group, cornerX, cornerY, cornerZ, scaleX, scaleY, sca
     mesh = new THREE.Mesh(stepGeos.bracket.geo.clone(), matBracket.clone());
     mesh.rotation.set(...BRACKET_ROT);
     mesh.position.set(...BRACKET_POS);
+    mesh.userData.stepType = 'bracket';
   } else {
     mesh = makeProceduralBracket();
   }
@@ -1300,6 +1673,7 @@ function placeTopFaceBrackets(group, W, D, H) {
       mesh = new THREE.Mesh(stepGeos.bracket.geo.clone(), matBracket.clone());
       mesh.rotation.set(-Math.PI/2, 0, 0);  // flat horizontal
       mesh.position.set(40, 2.5, -40);
+      mesh.userData.stepType = 'bracket';
     } else {
       mesh = makeProceduralBracket();
     }
@@ -1315,7 +1689,7 @@ function placeTopFaceBrackets(group, W, D, H) {
 // ── Door-face brackets (4 corners of the door frame) ───────
 // Offset to fine-tune position: adjust DOOR_BRACKET_OFFSET
 const BRACKET_ROT_Z = [0, Math.PI, Math.PI/2]; // door/rear face brackets — arms lie in XY plane
-const DOOR_BRACKET_OFFSET = new THREE.Vector3(20, -10, 52.5);
+const DOOR_BRACKET_OFFSET = new THREE.Vector3(22.5, -10, 52.5);
 
 function placeDoorBrackets(group, W, doorBotY, doorTopY, doorZ) {
   const sideX = W/2 - EX_WIDE/2;
@@ -1335,6 +1709,7 @@ function placeDoorBrackets(group, W, doorBotY, doorTopY, doorZ) {
         BRACKET_POS[1] + DOOR_BRACKET_OFFSET.y,
         BRACKET_POS[2] + DOOR_BRACKET_OFFSET.z
       );
+      mesh.userData.stepType = 'bracket';
     } else {
       mesh = makeProceduralBracket();
     }
@@ -1369,6 +1744,7 @@ function placeRearBrackets(group, W, D, H) {
         BRACKET_POS[1] + REAR_BRACKET_OFFSET.y,
         BRACKET_POS[2] + REAR_BRACKET_OFFSET.z
       );
+      mesh.userData.stepType = 'bracket';
     } else {
       mesh = makeProceduralBracket();
     }
@@ -1398,12 +1774,14 @@ function placeSTEPHinge(group, x, y, z) {
     const m = new THREE.Mesh(geoSleeve.clone(), matHingeSleeve.clone());
     m.rotation.set(...HINGE_SLEEVE_ROT);
     m.position.copy(HINGE_SLEEVE_OFFSET);
+    m.userData.stepType = 'hinge';
     g.add(m);
   }
   if (geoSolid) {
     const m = new THREE.Mesh(geoSolid.clone(), matHingeSolid.clone());
     m.rotation.set(...HINGE_SOLID_ROT);
     m.position.copy(HINGE_SOLID_OFFSET);
+    m.userData.stepType = 'hinge';
     g.add(m);
   }
   g.position.set(x, y, z);
@@ -1435,14 +1813,62 @@ function placeHinge(group, totalWidth, px, py, pz) {
 }
 
 // ── Desk ───────────────────────────────────────────────────
-let deskMesh = null;
+let deskGroup = null;
 function updateDesk(DW, DD, encD) {
-  if (deskMesh) scene.remove(deskMesh);
-  deskMesh = new THREE.Mesh(new THREE.BoxGeometry(DW,18,DD), matDesk);
-  deskMesh.position.set(0, -9, -encD/2);
-  deskMesh.receiveShadow = true;
-  scene.add(deskMesh);
+  if (deskGroup) scene.remove(deskGroup);
+  deskGroup = new THREE.Group();
+  deskGroup.position.set(0, 0, -encD/2);
+
+  // Tabletop
+  const topThick = 28;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(DW, topThick, DD), matDesk);
+  top.position.set(0, -topThick/2, 0);
+  top.receiveShadow = true;
+  top.castShadow = true;
+  deskGroup.add(top);
+
+  // Legs — tapered hairpin-style: thick square post tapering slightly
+  const legW = 38, legInset = 60;
+  const legHeight = 720;  // desk sits at y=0, legs go down
+  const legGeo = new THREE.BoxGeometry(legW, legHeight, legW);
+
+  const legPositions = [
+    [ DW/2 - legInset, -topThick - legHeight/2,  DD/2 - legInset],
+    [-DW/2 + legInset, -topThick - legHeight/2,  DD/2 - legInset],
+    [ DW/2 - legInset, -topThick - legHeight/2, -DD/2 + legInset],
+    [-DW/2 + legInset, -topThick - legHeight/2, -DD/2 + legInset],
+  ];
+  legPositions.forEach(([x,y,z]) => {
+    const leg = new THREE.Mesh(legGeo, matLeg);
+    leg.position.set(x, y, z);
+    leg.castShadow = true;
+    deskGroup.add(leg);
+  });
+
+  // Lower stretcher rails connecting front+back leg pairs for a workshop-bench look
+  const stretcherThick = 22, stretcherH = 22;
+  const stretcherDepth = DD - legInset*2;
+  const stretcherGeo = new THREE.BoxGeometry(stretcherThick, stretcherH, stretcherDepth);
+  const stretcherY = -topThick - legHeight * 0.55;
+  [-DW/2 + legInset, DW/2 - legInset].forEach(sx => {
+    const s = new THREE.Mesh(stretcherGeo, matLeg);
+    s.position.set(sx, stretcherY, 0);
+    s.castShadow = true;
+    deskGroup.add(s);
+  });
+
+  // Foot pads
+  const padGeo = new THREE.CylinderGeometry(22, 25, 8, 16);
+  const matPad = new THREE.MeshPhysicalMaterial({color:0x222222, metalness:0, roughness:0.95});
+  legPositions.forEach(([x,,z]) => {
+    const pad = new THREE.Mesh(padGeo, matPad);
+    pad.position.set(x, -topThick - legHeight + 4, z);
+    deskGroup.add(pad);
+  });
+
+  scene.add(deskGroup);
 }
+let deskMesh = null;
 
 // ── Scene rebuild ──────────────────────────────────────────
 let frameGroup = new THREE.Group();
@@ -1456,6 +1882,8 @@ function rebuildScene() {
 
   const {W, D, H, DW, DD, panels} = state;
   updateDesk(DW, DD, D);
+  updatePrinters(W, D, H);
+  ensurePrinterGroups(W, D, H);
 
   const EW=EX_WIDE, EN=EX_NARR;
   const yBot=EW/2,  yTop=H-EW/2;
@@ -1535,13 +1963,27 @@ function rebuildScene() {
     const innerH = postLen + 2*INSET;
     const panMidY = H/2, panMidZ = -D/2;
 
+    // Panel positioning: interior face of panel sits FLUSH with interior face of
+    // extrusion, body of panel recesses into the V-slot groove.
+    // For each wall: panelCenter = extrusionInteriorFace - PANEL_T/2  (offset INTO groove)
+    const PT = PANEL_T;
+    // Interior faces of each bounding extrusion
+    const faceBack   = zBack  + EN/2;          // front face of back rail   (most +Z on that rail)
+    const faceFront  = zFront - EN/2;          // rear face  of front rail  (most -Z on that rail)
+    const faceLeft   = xLeft  + EN/2;          // right face of left rail   (most +X on that rail)
+    const faceRight  = xRight - EN/2;          // left face  of right rail  (most -X on that rail)
+    const faceBottom = yBot   + EW/2;          // top face   of bottom rail (= EW = 40)
+    const faceTop    = yTop   - EW/2;          // bottom face of top rail   (= H - EW)
+
+    // Panels sit 10mm inside each extrusion (centred in the V-slot groove).
+    // 10mm = EN/2 inward from the interior face = exactly the extrusion centre.
+    // So: panel centre = extrusion centre for left/right/back/front walls,
+    //     panel centre = extrusion centre for top/bottom rails.
+
     if (panels.back) {
       const p = makePanel(innerW, innerH);
-      p.position.set(
-        0              + REAR_PANEL_OFFSET.x,
-        panMidY        + REAR_PANEL_OFFSET.y,
-        zBack          + REAR_PANEL_OFFSET.z
-      );
+      p.position.set(0 + REAR_PANEL_OFFSET.x, panMidY + REAR_PANEL_OFFSET.y,
+                     zBack + REAR_PANEL_OFFSET.z);
       frameGroup.add(p);
     }
     if (panels.left) {
@@ -1559,33 +2001,26 @@ function rebuildScene() {
     if (panels.top) {
       const p = makePanel(innerW, innerD+2*EN);
       p.rotation.x = Math.PI/2;
-      p.position.set(0, H, panMidZ);
+      p.position.set(0, yTop + 10, panMidZ);  // 10mm inside top 2040 rail (first V-slot)
       frameGroup.add(p);
     }
     if (panels.bottom) {
       const p = makePanel(innerW, innerD+2*EN);
       p.rotation.x = Math.PI/2;
-      p.position.set(0, 0, panMidZ);
+      p.position.set(0, yBot - 10, panMidZ);  // 10mm inside bottom 2040 rail (first V-slot)
       frameGroup.add(p);
     }
     if (panels.front) {
-      // Full-height front panel (behind door frame)
       const p = makePanel(innerW, innerH);
-      p.position.set(
-        0              + DOOR_PANEL_OFFSET.x,
-        panMidY        + DOOR_PANEL_OFFSET.y,
-        -EN/2          + DOOR_PANEL_OFFSET.z
-      );
+      p.position.set(0 + DOOR_PANEL_OFFSET.x, panMidY + DOOR_PANEL_OFFSET.y,
+                     zFront + DOOR_PANEL_OFFSET.z);
       frameGroup.add(p);
 
-      // Door glass panel (inset inside door frame)
+      // Door glass centred in the door frame 2020 rails (doorZ = rail centre)
       const dp = makePanel(W-2*EW+2*INSET, doorSideLen+2*INSET);
       dp.material.color.setHex(0xaaddff);
-      dp.position.set(
-        0              + DOOR_PANEL_OFFSET.x,
-        doorSideMidY   + DOOR_PANEL_OFFSET.y,
-        doorZ+3        + DOOR_PANEL_OFFSET.z
-      );
+      dp.position.set(0 + DOOR_PANEL_OFFSET.x, doorSideMidY + DOOR_PANEL_OFFSET.y,
+                      doorZ + DOOR_PANEL_OFFSET.z);
       frameGroup.add(dp);
     }
   }
@@ -1599,7 +2034,7 @@ function rebuildScene() {
 
 // ── Orbit controls ─────────────────────────────────────────
 const orbit = {
-  theta:Math.PI*0.25, phi:Math.PI/3.5, r:2000,
+  theta:-Math.PI*0.25, phi:Math.PI/2.6, r:2000,
   target:new THREE.Vector3(),
   dragging:false, button:-1, last:{x:0,y:0}
 };
@@ -1698,8 +2133,322 @@ function onResize() {
 }
 window.addEventListener('resize', onResize);
 
+// ── Voron model loader ─────────────────────────────────────
+// Prefers voron_*.glb (Draco-compressed), falls back to voron_*.obj + mtl.
+const voronLoadState = {};
+const voronGeoCache  = {};
+
+function onVoronLoaded(key, object) {
+  // Fusion 360 exports Z-forward — rotate upright
+  object.rotation.set(-Math.PI / 2, 0, 0);
+  object.updateMatrixWorld(true);
+  object.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    mats.forEach(m => {
+      if (!m) return;
+      m.side = THREE.DoubleSide;
+      if (m.opacity < 0.99) {
+        m.transparent = true;
+        m.depthWrite  = false;
+        m.opacity     = Math.max(m.opacity, 0.12); // keep barely-visible parts visible
+      }
+    });
+  });
+
+  scene.add(object);
+  scene.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(object);
+  scene.remove(object);
+
+  const ctr = box.getCenter(new THREE.Vector3());
+  const sz  = box.getSize(new THREE.Vector3());
+  object.position.set(-ctr.x, -box.min.y, -ctr.z);
+
+  const realGrp = new THREE.Group();
+  realGrp.add(object);
+
+  const pad = 20;
+  PRINTER_SPECS[key].fw   = sz.x;
+  PRINTER_SPECS[key].fd   = sz.z;
+  PRINTER_SPECS[key].fh   = sz.y;
+  PRINTER_SPECS[key].minW = sz.x + pad * 2;
+  PRINTER_SPECS[key].minD = sz.z + pad * 2;
+  PRINTER_SPECS[key].minH = sz.y + pad * 2;
+
+  voronGeoCache[key] = { realGrp, height: sz.y };
+  voronLoadState[key] = 'done';
+  console.log(`[Voron] ${key} ✓  ${sz.x.toFixed(0)}×${sz.z.toFixed(0)}×${sz.y.toFixed(0)} mm`);
+
+  applyVoronGeo(key);
+  const {W, D, H} = state;
+  updatePrinters(W, D, H);
+  ensurePrinterGroups(W, D, H);
+}
+
+function loadAllVoronPrinters() {
+  const dracoLoader = typeof THREE.DRACOLoader !== 'undefined' ? (() => {
+    const dl = new THREE.DRACOLoader();
+    dl.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    dl.setDecoderConfig({ type: 'js' }); // force JS decoder — avoids WASM version mismatches with r128
+    dl.preload();
+    return dl;
+  })() : null;
+
+  printerOrder.forEach(key => {
+    voronLoadState[key] = 'loading';
+    const glbFile = `voron_${key === 'v02' ? 'v02' : key}.glb`;
+    const objFile = `voron_${key === 'v02' ? 'v02' : key}.obj`;
+    const mtlFile = `voron_${key === 'v02' ? 'v02' : key}.mtl`;
+
+    // Try GLB first
+    if (typeof THREE.GLTFLoader !== 'undefined') {
+      const gltfLoader = new THREE.GLTFLoader();
+      if (dracoLoader) gltfLoader.setDRACOLoader(dracoLoader);
+      gltfLoader.load(
+        glbFile,
+        gltf => onVoronLoaded(key, gltf.scene),
+        null,
+        () => tryOBJ()  // GLB not found, fall back to OBJ
+      );
+    } else { tryOBJ(); }
+
+    function tryOBJ() {
+      if (typeof THREE.OBJLoader === 'undefined') {
+        voronLoadState[key] = 'error'; return;
+      }
+      function loadWithMat(mat) {
+        const loader = new THREE.OBJLoader();
+        if (mat) loader.setMaterials(mat);
+        loader.load(objFile,
+          obj => onVoronLoaded(key, obj),
+          null,
+          () => { voronLoadState[key] = 'error'; console.warn(`[Voron] ${key} — no GLB or OBJ found`); }
+        );
+      }
+      const mtlLoader = new THREE.MTLLoader();
+      mtlLoader.load(mtlFile,
+        m => { m.preload(); loadWithMat(m); },
+        null,
+        () => loadWithMat(null)
+      );
+    }
+  });
+}
+
+function applyVoronGeo(key) {
+  const grp = printerGroups[key];
+  const cache = voronGeoCache[key];
+  if (!grp || !cache) return;
+
+  while (grp.children.length) grp.remove(grp.children[0]);
+  grp.add(cache.realGrp.clone());
+
+  // Label
+  const spec = PRINTER_SPECS[key];
+  const lc = document.createElement('canvas'); lc.width=256; lc.height=64;
+  const lx = lc.getContext('2d');
+  lx.font='bold 36px monospace'; lx.textAlign='center';
+  lx.fillStyle='#ffffff'; lx.globalAlpha=0.75;
+  lx.fillText('Voron '+spec.label, 128, 44);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(lc), transparent:true, depthTest:false}));
+  sp.scale.set(140, 35, 1);
+  sp.position.set(0, cache.height + 40, 0);
+  grp.add(sp);
+
+  // Re-pop animation
+  printerScale[key] = 0;
+  if (grp._vel !== undefined) grp._vel = 0;
+}
+
+// ── Voron printer models ───────────────────────────────────
+// Minimum INTERIOR dimensions (W, D, H) mm to show each printer
+const PRINTER_SPECS = {
+  v02:     { label:'V0.2',    fw:235, fd:235, fh:235, bed:120, zMotors:0, accent:0xe05555, minW:270, minD:270, minH:270 },
+  trident: { label:'Trident', fw:310, fd:310, fh:370, bed:250, zMotors:3, accent:0x7c6bbf, minW:370, minD:370, minH:430 },
+  v24:     { label:'Cascade', fw:370, fd:370, fh:430, bed:350, zMotors:4, accent:0x44aa77, minW:450, minD:450, minH:510 },
+};
+const printerOrder = ['v02','trident','v24'];
+
+const matFrame3d  = new THREE.MeshPhysicalMaterial({color:0x2a2a2a, metalness:0.2, roughness:0.7});
+const matBed3d    = new THREE.MeshPhysicalMaterial({color:0x111111, metalness:0.1, roughness:0.55});
+const matGantry3d = new THREE.MeshPhysicalMaterial({color:0xaaaaaa, metalness:0.6, roughness:0.3});
+
+function buildPrinterGroup(key) {
+  const s = PRINTER_SPECS[key];
+  const g = new THREE.Group();
+  const W=s.fw, D=s.fd, H=s.fh;
+  const ex = 10; // extrusion thickness
+
+  const matAcc = new THREE.MeshPhysicalMaterial({color:s.accent, metalness:0.1, roughness:0.5});
+
+  // 12-edge frame from boxes
+  function rail(sx,sy,sz, px,py,pz) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz), matFrame3d.clone());
+    m.position.set(px,py,pz); m.castShadow=true; g.add(m);
+  }
+  // 4 vertical posts
+  [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([a,b])=> rail(ex,H,ex, a*(W/2-ex/2),H/2,b*(D/2-ex/2)));
+  // Bottom ring
+  rail(W-ex*2,ex,ex,  0,ex/2,-(D/2-ex/2));
+  rail(W-ex*2,ex,ex,  0,ex/2,  D/2-ex/2);
+  rail(ex,ex,D-ex*2,  -(W/2-ex/2),ex/2,0);
+  rail(ex,ex,D-ex*2,   (W/2-ex/2),ex/2,0);
+  // Top ring
+  rail(W-ex*2,ex,ex,  0,H-ex/2,-(D/2-ex/2));
+  rail(W-ex*2,ex,ex,  0,H-ex/2,  D/2-ex/2);
+  rail(ex,ex,D-ex*2,  -(W/2-ex/2),H-ex/2,0);
+  rail(ex,ex,D-ex*2,   (W/2-ex/2),H-ex/2,0);
+
+  // Build plate
+  const bGeo = new THREE.BoxGeometry(s.bed, 6, s.bed);
+  const bed = new THREE.Mesh(bGeo, matBed3d.clone());
+  bed.position.set(0, s.zMotors>0 ? H*0.28 : H*0.22, 0);
+  bed.castShadow=true; g.add(bed);
+
+  // Heated bed glow accent lines
+  const hLine = new THREE.Mesh(new THREE.BoxGeometry(s.bed*0.85, 2, 4), matAcc.clone());
+  hLine.position.set(0, bed.position.y+4, 0); g.add(hLine);
+
+  // Gantry X rail
+  const gantryY = key==='v24' ? H*0.78 : H-ex*2.5;
+  const xRail = new THREE.Mesh(new THREE.BoxGeometry(W-ex*2, 8, 8), matGantry3d.clone());
+  xRail.position.set(0, gantryY, 0); g.add(xRail);
+
+  // For V2.4 add second Y rail
+  if (key==='v24') {
+    const yRail = new THREE.Mesh(new THREE.BoxGeometry(8, 8, D-ex*2), matGantry3d.clone());
+    yRail.position.set(0, gantryY+8, 0); g.add(yRail);
+  }
+
+  // Toolhead
+  const th = new THREE.Mesh(new THREE.BoxGeometry(28,32,22), matAcc.clone());
+  th.position.set(0, gantryY-14, key==='v24'?0:-D*0.15); g.add(th);
+  // Hotend nozzle
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(3,1.5,12,8), matAcc.clone());
+  nozzle.position.set(0, gantryY-30, key==='v24'?0:-D*0.15); g.add(nozzle);
+
+  // Z motors (cylinders at corners for Trident/2.4)
+  if (s.zMotors===4) {
+    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([a,b])=>{
+      const zm = new THREE.Mesh(new THREE.BoxGeometry(22,30,22), matAcc.clone());
+      zm.position.set(a*(W/2-15), 15, b*(D/2-15)); g.add(zm);
+    });
+  } else if (s.zMotors===3) {
+    [[0,1],[-1,-1],[1,-1]].forEach(([a,b])=>{
+      const zm = new THREE.Mesh(new THREE.BoxGeometry(22,30,22), matAcc.clone());
+      zm.position.set(a*(W/2-20)*0.8, 15, b*(D/2-20)*0.8); g.add(zm);
+    });
+  }
+
+  // Label sprite (small floating text above)
+  const lc = document.createElement('canvas'); lc.width=256; lc.height=64;
+  const lx = lc.getContext('2d');
+  lx.fillStyle='rgba(0,0,0,0)'; lx.fillRect(0,0,256,64);
+  lx.font='bold 36px monospace'; lx.textAlign='center';
+  lx.fillStyle='#ffffff'; lx.globalAlpha=0.75;
+  lx.fillText('Voron '+s.label, 128, 44);
+  const ltex = new THREE.CanvasTexture(lc);
+  const lmat = new THREE.SpriteMaterial({map:ltex, transparent:true, depthTest:false});
+  const sprite = new THREE.Sprite(lmat);
+  sprite.scale.set(120, 30, 1);
+  sprite.position.set(0, H+32, 0);
+  g.add(sprite);
+
+  return g;
+}
+
+// State for pop-in animation
+const printerGroups = {};
+const printerScale  = { v02:0, trident:0, v24:0 };
+const printerTarget = { v02:0, trident:0, v24:0 };
+let printersDirty = false;
+
+function updatePrinters(encW, encD, encH) {
+  const margin = 40;
+  const minGap = 20;
+
+  // Step 1: which printers fit individually?
+  let showing = printerOrder.filter(k => {
+    const s = PRINTER_SPECS[k];
+    return s.fw + margin*2 <= encW && s.fd + margin*2 <= encD && s.fh + margin*2 <= encH;
+  });
+
+  // Step 2: do they fit together width-wise? Drop widest first until they do
+  while (showing.length > 1) {
+    const totalFW = showing.reduce((a, k) => a + PRINTER_SPECS[k].fw, 0);
+    const needed  = totalFW + minGap * (showing.length - 1) + margin * 2;
+    if (needed <= encW) break;
+    const widest = showing.reduce((a, k) => PRINTER_SPECS[k].fw > PRINTER_SPECS[a].fw ? k : a);
+    showing = showing.filter(k => k !== widest);
+  }
+
+  printerOrder.forEach(key => { printerTarget[key] = showing.includes(key) ? 1 : 0; });
+  printersDirty = true;
+}
+
+function layoutPrinters(encW, encD, encH) {
+  // Ensure groups exist
+  printerOrder.forEach(key => {
+    if (!printerGroups[key]) {
+      const grp = buildPrinterGroup(key);
+      grp.scale.setScalar(0);
+      scene.add(grp);
+      printerGroups[key] = grp;
+      if (voronGeoCache[key]) applyVoronGeo(key);
+    }
+  });
+
+  // Only position printers that SHOULD be visible — let departing ones shrink in place
+  const showing = printerOrder.filter(k => printerTarget[k] > 0);
+  if (showing.length === 0) return;
+
+  const totalFW = showing.reduce((a, k) => a + PRINTER_SPECS[k].fw, 0);
+  const availW  = encW - 80;
+  const rawGap  = showing.length > 1 ? (availW - totalFW) / (showing.length - 1) : 0;
+  const gap     = Math.max(20, Math.min(80, rawGap));
+  const totalW  = totalFW + gap * (showing.length - 1);
+
+  let x = -totalW / 2;
+  showing.forEach(key => {
+    const s = PRINTER_SPECS[key];
+    printerGroups[key].position.set(x + s.fw/2, EX_WIDE, -encD/2);
+    x += s.fw + gap;
+  });
+}
+
+// keep old name as alias so existing callers still work
+function ensurePrinterGroups(encW, encD, encH) { layoutPrinters(encW, encD, encH); }
+
 // ── Render loop ────────────────────────────────────────────
-(function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);})();
+(function animate(){
+  requestAnimationFrame(animate);
+
+  // Spring pop-in for printers
+  const spring=0.12, damp=0.72;
+  let layoutDirty = false;
+  printerOrder.forEach(key => {
+    const grp = printerGroups[key];
+    if (!grp) return;
+    const cur = printerScale[key];
+    const tgt = printerTarget[key];
+    if (grp._vel === undefined) grp._vel = 0;
+    const force = (tgt - cur) * spring;
+    grp._vel = grp._vel * damp + force;
+    let next = cur + grp._vel;
+    if (Math.abs(next-tgt)<0.001 && Math.abs(grp._vel)<0.001) { next=tgt; grp._vel=0; }
+    // Recalculate layout when a printer crosses the visible threshold
+    const wasActive = cur > 0.01;
+    const isActive  = next > 0.01;
+    if (wasActive !== isActive) layoutDirty = true;
+    printerScale[key] = next;
+    grp.scale.setScalar(Math.max(0,next));
+  });
+  { const {W,D,H}=state; ensurePrinterGroups(W,D,H); }
+
+  renderer.render(scene,camera);
+})();
 
 // ── Init ───────────────────────────────────────────────────
 onResize();
@@ -1708,6 +2457,8 @@ recalc();
 
 // Try to load STEP files (works when served from http:// — run: python -m http.server 8080)
 tryLoadSTEP();
+// Load Voron printer GLB models in parallel (requires voron_*.glb in repo root)
+loadAllVoronPrinters();
 </script>
 </body>
 </html>
