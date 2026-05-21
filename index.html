@@ -218,16 +218,16 @@ tr.bom-row.selected td.td-dim{color:#cce}
         <div class="grp-body">
           <div class="inp-row">
             <label for="inp-dw">Width</label>
-            <input class="xp-inp" type="number" id="inp-dw" value="1200" min="400" max="4000" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-dw" value="1500" min="400" max="4000" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-dw">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-dw" min="400" max="4000" value="1200" oninput="syncSlider('dw')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-dw" min="400" max="4000" value="1500" oninput="syncSlider('dw')"></div>
           <div class="inp-row">
             <label for="inp-dd">Depth</label>
-            <input class="xp-inp" type="number" id="inp-dd" value="750" min="300" max="2000" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-dd" value="800" min="300" max="2000" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-dd">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-dd" min="300" max="2000" value="750" oninput="syncSlider('dd')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-dd" min="300" max="2000" value="800" oninput="syncSlider('dd')"></div>
         </div>
       </div>
 
@@ -237,22 +237,22 @@ tr.bom-row.selected td.td-dim{color:#cce}
         <div class="grp-body">
           <div class="inp-row">
             <label for="inp-w">Width</label>
-            <input class="xp-inp" type="number" id="inp-w" value="900" min="200" max="3000" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-w" value="1500" min="200" max="3000" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-w">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-w" min="200" max="3000" value="900" oninput="syncSlider('w')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-w" min="200" max="3000" value="1500" oninput="syncSlider('w')"></div>
           <div class="inp-row">
             <label for="inp-d">Depth</label>
-            <input class="xp-inp" type="number" id="inp-d" value="520" min="200" max="2000" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-d" value="765" min="200" max="2000" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-d">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-d" min="200" max="2000" value="520" oninput="syncSlider('d')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-d" min="200" max="2000" value="765" oninput="syncSlider('d')"></div>
           <div class="inp-row">
             <label for="inp-h">Height</label>
-            <input class="xp-inp" type="number" id="inp-h" value="580" min="200" max="1200" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-h" value="895" min="200" max="1200" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-h">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-h" min="200" max="1200" value="580" oninput="syncSlider('h')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-h" min="200" max="1200" value="895" oninput="syncSlider('h')"></div>
         </div>
       </div>
 
@@ -339,8 +339,8 @@ const EX_NARR = 20;
 
 // ── State ──────────────────────────────────────────────────
 let state = {
-  DW:1200, DD:750,
-  W:900, D:520, H:580,
+  DW:1500, DD:800,
+  W:1500, D:765, H:895,
   units:'mm',
   panels:{front:true,back:true,left:true,right:true,top:true,bottom:false}
 };
