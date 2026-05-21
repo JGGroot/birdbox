@@ -2549,8 +2549,7 @@ recalc();
 
 // Try to load STEP files (works when served from http:// — run: python -m http.server 8080)
 tryLoadSTEP();
-// GLB models are too heavy for mobile — procedural meshes are used instead
-if (!isMobile) loadAllVoronPrinters();
+loadAllVoronPrinters();
 </script>
 </body>
 </html>
