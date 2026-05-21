@@ -1192,8 +1192,9 @@ async function tryLoadSTEP() {
 // ── Three.js Setup ─────────────────────────────────────────
 const canvas = document.getElementById('canvas3d');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.shadowMap.enabled = true;
+const isMobile = window.innerWidth <= 700;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 2 : 3));
+renderer.shadowMap.enabled = !isMobile;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setClearColor(0xEEE9DE, 1);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -2571,8 +2572,8 @@ recalc();
 
 // Try to load STEP files (works when served from http:// — run: python -m http.server 8080)
 tryLoadSTEP();
-// Load Voron printer GLB models in parallel (requires voron_*.glb in repo root)
-loadAllVoronPrinters();
+// GLB models are too heavy for mobile — procedural meshes are used instead
+if (!isMobile) loadAllVoronPrinters();
 </script>
 </body>
 </html>
