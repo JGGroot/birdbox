@@ -103,12 +103,6 @@ tr.bom-row.selected td.td-dim{color:#cce}
 .td-dim{font-family:var(--mono);color:#555;font-size:10px}
 .bom-foot{padding:4px 6px;display:flex;justify-content:space-between;align-items:center;background:var(--gray0);border-top:1px solid var(--gray3)}
 
-/* ── Status bar ── */
-.status-bar{height:20px;background:var(--gray0);border-top:1px solid var(--gray3);display:flex;align-items:stretch;flex-shrink:0}
-.st-panel{padding:0 8px;display:flex;align-items:center;border-right:1px solid var(--gray3);font-size:11px;white-space:nowrap;gap:4px}
-.st-panel:first-child{border-left:none}
-.st-val{font-family:var(--mono);font-weight:bold;color:var(--navy)}
-.st-ok{color:var(--green);font-weight:bold}
 
 /* ── View controls ── */
 .view-controls{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:2px;pointer-events:all}
@@ -149,9 +143,6 @@ tr.bom-row.selected td.td-dim{color:#cce}
   /* Show the Settings tab */
   .tab-btn.mob-only{display:inline-block}
 
-  /* Status bar: compress */
-  .st-panel{padding:0 5px;font-size:10px}
-  .st-panel .st-val{font-size:10px}
 
   /* Bigger tap targets */
   .xp-inp{width:80px;height:28px;font-size:13px;padding:2px 6px}
@@ -177,7 +168,6 @@ tr.bom-row.selected td.td-dim{color:#cce}
 
 @media (max-width:400px){
   .logo-sub{display:none}
-  .st-panel:nth-child(3){display:none}
 }
 </style>
 </head>
@@ -300,13 +290,6 @@ tr.bom-row.selected td.td-dim{color:#cce}
 
     </div>
 
-    <!-- Status bar -->
-    <div class="status-bar">
-      <div class="st-panel">Desk: <span class="st-val" id="st-desk">—</span></div>
-      <div class="st-panel">Enc: <span class="st-val" id="st-enc">—</span></div>
-      <div class="st-panel"><span id="st-step" style="color:#888">STEP: —</span></div>
-      <div class="st-panel st-ok" id="st-status">● Ready</div>
-    </div>
   </div>
 
   <div class="viewport">
@@ -474,11 +457,7 @@ function onDimensionChange() {
   recalc();
 }
 
-function updateStatus() {
-  const u = uL();
-  document.getElementById('st-desk').textContent = `${toDisp(state.DW)}×${toDisp(state.DD)}${u}`;
-  document.getElementById('st-enc').textContent  = `${toDisp(state.W)}×${toDisp(state.D)}×${toDisp(state.H)}${u}`;
-}
+function updateStatus() {}
 
 // ── Recalc ─────────────────────────────────────────────────
 function recalc() {
@@ -1115,9 +1094,7 @@ function centerAndAnalyze(geo) {
 }
 
 async function tryLoadSTEP() {
-  const el = document.getElementById('st-step');
-  el.textContent = 'STEP: loading…';
-  el.style.color = '#888';
+  const el = { textContent:'', style:{color:''} }; // status bar removed
   try {
     // Load occt-import-js from CDN
     await new Promise((res, rej) => {
