@@ -131,11 +131,11 @@ tr.bom-row.selected td.td-dim{color:#cce}
   /* Stacked layout: controls on top, 3D on bottom */
   .main{flex-direction:column}
   .sidebar{
-    width:100%;height:65dvh;flex-shrink:0;
+    width:100%;height:55dvh;flex-shrink:0;
     border-right:none;border-bottom:2px solid var(--gray3);
   }
   .sidebar-scroll{padding:6px 8px}
-  .viewport{flex:none;height:35dvh;width:100%}
+  .viewport{flex:none;height:45dvh;width:100%}
 
   /* Hide the header configure button (sidebar always visible) */
   .mob-toggle{display:none}
@@ -2071,7 +2071,7 @@ const orbit = {
 
 function fitCamera() {
   const {W,D,H} = state;
-  orbit.r = Math.max(W,D,H) * 2.8;
+  orbit.r = Math.max(W,D,H) * 2.0;
   orbit.target.set(0, H/2, -D/2);
   applyOrbit();
 }
@@ -2190,7 +2190,7 @@ canvas.addEventListener('touchend', e=>{
 
 // ── View presets ───────────────────────────────────────────
 function resetCamera() {
-  orbit.theta=Math.PI*0.25; orbit.phi=Math.PI/3.5;
+  orbit.theta=Math.PI*0.25; orbit.phi=Math.PI/2.8;
   fitCamera();
   document.getElementById('view-label').textContent='Isometric View';
 }
@@ -2199,7 +2199,7 @@ function setView(v) {
   document.getElementById('view-label').textContent=L[v]||'';
   if (v==='front')    {orbit.theta=0;            orbit.phi=Math.PI/2.02;}
   else if (v==='top') {orbit.theta=Math.PI*0.25; orbit.phi=0.06;}
-  else                {orbit.theta=Math.PI*0.25; orbit.phi=Math.PI/3.5;}
+  else                {orbit.theta=Math.PI*0.25; orbit.phi=Math.PI/2.8;}
   fitCamera();
 }
 function togglePanels() {
