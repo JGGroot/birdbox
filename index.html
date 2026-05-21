@@ -18,7 +18,7 @@
   --vp:#EEE9DE;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--gray0);color:var(--black);font-family:var(--font);font-size:11px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+body{background:var(--gray0);color:var(--black);font-family:var(--font);font-size:11px;height:100vh;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
 
 /* ── Header ── */
 header{
@@ -129,6 +129,56 @@ tr.bom-row.selected td.td-dim{color:#cce}
 ::-webkit-scrollbar{width:16px}
 ::-webkit-scrollbar-track{background:var(--gray1);border-left:1px solid var(--gray2)}
 ::-webkit-scrollbar-thumb{background:var(--gray0);border:2px solid;border-color:var(--white) var(--gray3) var(--gray3) var(--white)}
+
+/* ── Mobile-only Settings tab (3rd BOM tab) ── */
+.tab-btn.mob-only{display:none}
+
+@media (max-width:700px){
+  /* Stacked layout: controls on top, 3D on bottom */
+  .main{flex-direction:column}
+  .sidebar{
+    width:100%;height:65dvh;flex-shrink:0;
+    border-right:none;border-bottom:2px solid var(--gray3);
+  }
+  .sidebar-scroll{padding:6px 8px}
+  .viewport{flex:none;height:35dvh;width:100%}
+
+  /* Hide the header configure button (sidebar always visible) */
+  .mob-toggle{display:none}
+
+  /* Show the Settings tab */
+  .tab-btn.mob-only{display:inline-block}
+
+  /* Status bar: compress */
+  .st-panel{padding:0 5px;font-size:10px}
+  .st-panel .st-val{font-size:10px}
+
+  /* Bigger tap targets */
+  .xp-inp{width:80px;height:28px;font-size:13px;padding:2px 6px}
+  .inp-row label{font-size:12px;width:76px}
+  .chk-row{padding:5px 0;font-size:12px}
+  .chk-row input[type=checkbox]{width:16px;height:16px}
+  .xp-btn{padding:6px 12px;font-size:12px}
+  .tab-btn{padding:6px 12px 7px;font-size:12px}
+  .grp-title{font-size:11px;padding:4px 8px}
+  .grp-body{padding:7px 8px}
+  input[type=range]{height:22px}
+
+  /* View controls */
+  .view-btn{width:36px;height:30px;font-size:13px}
+  .view-controls{gap:4px;top:8px;right:8px}
+  .view-info{display:none}
+
+  /* BOM table scrollable */
+  .tab-pane{overflow-x:auto}
+  table{min-width:240px}
+  th,td{white-space:nowrap;padding:5px 8px;font-size:11px}
+}
+
+@media (max-width:400px){
+  .logo-sub{display:none}
+  .st-panel:nth-child(3){display:none}
+}
 </style>
 </head>
 <body>
@@ -140,7 +190,7 @@ tr.bom-row.selected td.td-dim{color:#cce}
     <span class="logo-sub">Open Source Printer Enclosure</span>
   </div>
   <div class="header-right">
-    <a class="hdr-btn" href="https://github.com/yourusername/birdbox" target="_blank">
+    <a class="hdr-btn" href="https://github.com/JGGroot/birdbox" target="_blank" rel="noopener">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
       GitHub
     </a>
@@ -168,16 +218,16 @@ tr.bom-row.selected td.td-dim{color:#cce}
         <div class="grp-body">
           <div class="inp-row">
             <label for="inp-dw">Width</label>
-            <input class="xp-inp" type="number" id="inp-dw" value="1500" min="400" max="4000" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-dw" value="1200" min="400" max="4000" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-dw">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-dw" min="400" max="4000" value="1500" oninput="syncSlider('dw')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-dw" min="400" max="4000" value="1200" oninput="syncSlider('dw')"></div>
           <div class="inp-row">
             <label for="inp-dd">Depth</label>
-            <input class="xp-inp" type="number" id="inp-dd" value="800" min="300" max="2000" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-dd" value="750" min="300" max="2000" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-dd">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-dd" min="300" max="2000" value="800" oninput="syncSlider('dd')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-dd" min="300" max="2000" value="750" oninput="syncSlider('dd')"></div>
         </div>
       </div>
 
@@ -187,27 +237,27 @@ tr.bom-row.selected td.td-dim{color:#cce}
         <div class="grp-body">
           <div class="inp-row">
             <label for="inp-w">Width</label>
-            <input class="xp-inp" type="number" id="inp-w" value="1400" min="200" max="3000" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-w" value="900" min="200" max="3000" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-w">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-w" min="200" max="3000" value="1400" oninput="syncSlider('w')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-w" min="200" max="3000" value="900" oninput="syncSlider('w')"></div>
           <div class="inp-row">
             <label for="inp-d">Depth</label>
-            <input class="xp-inp" type="number" id="inp-d" value="670" min="200" max="2000" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-d" value="520" min="200" max="2000" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-d">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-d" min="200" max="2000" value="670" oninput="syncSlider('d')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-d" min="200" max="2000" value="520" oninput="syncSlider('d')"></div>
           <div class="inp-row">
             <label for="inp-h">Height</label>
-            <input class="xp-inp" type="number" id="inp-h" value="840" min="200" max="1200" oninput="onDimensionChange()">
+            <input class="xp-inp" type="number" id="inp-h" value="580" min="200" max="1200" oninput="onDimensionChange()">
             <span class="inp-unit" id="unit-h">mm</span>
           </div>
-          <div class="slider-wrap"><input type="range" id="sl-h" min="200" max="1200" value="840" oninput="syncSlider('h')"></div>
+          <div class="slider-wrap"><input type="range" id="sl-h" min="200" max="1200" value="580" oninput="syncSlider('h')"></div>
         </div>
       </div>
 
       <!-- Panels -->
-      <div class="grp">
+      <div class="grp" id="panels-grp">
         <div class="grp-title">Acrylic Panels</div>
         <div class="grp-body">
           <label class="chk-row"><input type="checkbox" id="chk-front" checked onchange="onDimensionChange()"> Front (door panel)</label>
@@ -225,6 +275,7 @@ tr.bom-row.selected td.td-dim{color:#cce}
         <div class="tab-bar">
           <button class="tab-btn active" onclick="switchTab('extrusion',this)">Extrusions</button>
           <button class="tab-btn"        onclick="switchTab('acrylic',this)">Acrylic</button>
+          <button class="tab-btn mob-only" onclick="switchTab('settings',this)">Settings</button>
         </div>
         <div class="tab-pane active" id="pane-extrusion">
           <table>
@@ -239,6 +290,7 @@ tr.bom-row.selected td.td-dim{color:#cce}
             <tbody id="tbl-acrylic"></tbody>
           </table>
         </div>
+        <div class="tab-pane" id="pane-settings"></div>
         <div class="bom-foot">
           <span id="bom-total-text" style="font-size:11px;color:#444"></span>
           <button class="xp-btn" onclick="exportCSV()">Export CSV</button>
@@ -287,8 +339,8 @@ const EX_NARR = 20;
 
 // ── State ──────────────────────────────────────────────────
 let state = {
-  DW:1500, DD:800,
-  W:1400, D:700, H:860,
+  DW:1200, DD:750,
+  W:900, D:520, H:580,
   units:'mm',
   panels:{front:true,back:true,left:true,right:true,top:true,bottom:false}
 };
@@ -2086,18 +2138,77 @@ canvas.addEventListener('wheel', e => {
   applyOrbit(); e.preventDefault();
 },{passive:false});
 
+// ── Mobile: move panels group into Settings tab ────────────
+function initMobileLayout() {
+  if (window.innerWidth > 700) return;
+  const panelsGrp  = document.getElementById('panels-grp');
+  const settingsPane = document.getElementById('pane-settings');
+  if (panelsGrp && settingsPane) {
+    // Strip outer grp border/margin so it fits flush inside the tab pane
+    panelsGrp.style.margin = '0';
+    panelsGrp.style.border = 'none';
+    settingsPane.appendChild(panelsGrp);
+  }
+}
+
+// ── Touch controls ─────────────────────────────────────────
+let _touch = { active:false, pinching:false, last:{x:0,y:0}, lastDist:0 };
+
 canvas.addEventListener('touchstart', e=>{
-  if(e.touches.length===1){orbit.dragging=true;orbit.button=0;orbit.last={x:e.touches[0].clientX,y:e.touches[0].clientY};}
-});
-canvas.addEventListener('touchmove', e=>{
-  if(!orbit.dragging||e.touches.length!==1) return;
-  const dx=e.touches[0].clientX-orbit.last.x, dy=e.touches[0].clientY-orbit.last.y;
-  orbit.last={x:e.touches[0].clientX,y:e.touches[0].clientY};
-  orbit.theta-=dx*0.007;
-  orbit.phi=Math.max(0.05,Math.min(Math.PI*0.48,orbit.phi-dy*0.007));
-  applyOrbit(); e.preventDefault();
+  e.preventDefault();
+  if(e.touches.length===1){
+    _touch.active=true; _touch.pinching=false;
+    _touch.last={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  } else if(e.touches.length===2){
+    _touch.pinching=true; _touch.active=false;
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    _touch.lastDist=Math.sqrt(dx*dx+dy*dy);
+    _touch.last={
+      x:(e.touches[0].clientX+e.touches[1].clientX)/2,
+      y:(e.touches[0].clientY+e.touches[1].clientY)/2
+    };
+  }
 },{passive:false});
-canvas.addEventListener('touchend',()=>{orbit.dragging=false;});
+
+canvas.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  if(_touch.active && e.touches.length===1){
+    const dx=e.touches[0].clientX-_touch.last.x, dy=e.touches[0].clientY-_touch.last.y;
+    _touch.last={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    orbit.theta-=dx*0.007;
+    orbit.phi=Math.max(0.05,Math.min(Math.PI*0.48,orbit.phi-dy*0.007));
+    applyOrbit();
+  } else if(_touch.pinching && e.touches.length===2){
+    // Pinch zoom
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(_touch.lastDist>0){
+      orbit.r=Math.max(100,orbit.r*(_touch.lastDist/dist));
+    }
+    _touch.lastDist=dist;
+    // Two-finger pan
+    const mx=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    const my=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    const pdx=mx-_touch.last.x, pdy=my-_touch.last.y;
+    _touch.last={x:mx,y:my};
+    const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);
+    const up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);
+    const speed=orbit.r/canvas.clientWidth*1.6;
+    orbit.target.addScaledVector(right,-pdx*speed);
+    orbit.target.addScaledVector(up,pdy*speed);
+    applyOrbit();
+  }
+},{passive:false});
+
+canvas.addEventListener('touchend', e=>{
+  if(e.touches.length===0){_touch.active=false;_touch.pinching=false;}
+  else if(e.touches.length===1){
+    _touch.pinching=false; _touch.active=true;
+    _touch.last={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  }
+});
 
 // ── View presets ───────────────────────────────────────────
 function resetCamera() {
@@ -2269,7 +2380,7 @@ const PRINTER_SPECS = {
   trident: { label:'Trident', fw:310, fd:310, fh:370, bed:250, zMotors:3, accent:0x7c6bbf, minW:370, minD:370, minH:430 },
   v24:     { label:'Cascade', fw:370, fd:370, fh:430, bed:350, zMotors:4, accent:0x44aa77, minW:450, minD:450, minH:510 },
 };
-const printerOrder = ['v02','trident','v24'];
+const printerOrder = ['v24','trident','v02']; // priority: Cascade > Trident > V0.2
 
 const matFrame3d  = new THREE.MeshPhysicalMaterial({color:0x2a2a2a, metalness:0.2, roughness:0.7});
 const matBed3d    = new THREE.MeshPhysicalMaterial({color:0x111111, metalness:0.1, roughness:0.55});
@@ -2375,13 +2486,15 @@ function updatePrinters(encW, encD, encH) {
     return s.fw + margin*2 <= encW && s.fd + margin*2 <= encD && s.fh + margin*2 <= encH;
   });
 
-  // Step 2: do they fit together width-wise? Drop widest first until they do
+  // Step 2: do they fit together width-wise? Drop lowest priority first until they do
   while (showing.length > 1) {
     const totalFW = showing.reduce((a, k) => a + PRINTER_SPECS[k].fw, 0);
     const needed  = totalFW + minGap * (showing.length - 1) + margin * 2;
     if (needed <= encW) break;
-    const widest = showing.reduce((a, k) => PRINTER_SPECS[k].fw > PRINTER_SPECS[a].fw ? k : a);
-    showing = showing.filter(k => k !== widest);
+    // Drop the lowest-priority printer (last in printerOrder)
+    const lowestPri = showing.reduce((a, k) =>
+      printerOrder.indexOf(k) > printerOrder.indexOf(a) ? k : a);
+    showing = showing.filter(k => k !== lowestPri);
   }
 
   printerOrder.forEach(key => { printerTarget[key] = showing.includes(key) ? 1 : 0; });
@@ -2413,7 +2526,7 @@ function layoutPrinters(encW, encD, encH) {
   let x = -totalW / 2;
   showing.forEach(key => {
     const s = PRINTER_SPECS[key];
-    printerGroups[key].position.set(x + s.fw/2, EX_WIDE, -encD/2);
+    printerGroups[key].position.set(x + s.fw/2, 0, -encD/2);
     x += s.fw + gap;
   });
 }
@@ -2451,6 +2564,7 @@ function ensurePrinterGroups(encW, encD, encH) { layoutPrinters(encW, encD, encH
 })();
 
 // ── Init ───────────────────────────────────────────────────
+initMobileLayout();
 onResize();
 updateStatus();
 recalc();
